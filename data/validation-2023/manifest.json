@@ -1,0 +1,67 @@
+{
+  "chain_id": 1,
+  "start_block": 17000000,
+  "end_block": 17000999,
+  "end_block_hash": "0xb94f48ef42fe2251bee07a4122c893345b92ec924e6d12d261438531de470ceb",
+  "start_timestamp": 1680911891,
+  "end_timestamp": 1680924059,
+  "created_at": "2026-09-16T17:52:52.032680+00:00",
+  "cryo_version": "0.3.2",
+  "controllers": [
+    {
+      "name": "launch_2019",
+      "address": "0xf0ad5cad05e10572efceb849f6ff0c68f9700455",
+      "start": 7000000,
+      "registration_shape": "combined",
+      "refund_bug": false
+    },
+    {
+      "name": "updated_2019",
+      "address": "0xb22c1c159d12461ea124b0deb4b5b93020e6ad16",
+      "start": 7000000,
+      "registration_shape": "combined",
+      "refund_bug": false
+    },
+    {
+      "name": "legacy_2020",
+      "address": "0x283af0b28c62c092c9727f1ee09c02ca627eb7f5",
+      "start": 9380471,
+      "registration_shape": "combined",
+      "refund_bug": false
+    },
+    {
+      "name": "wrapped_2023",
+      "address": "0x253553366da8546fc250f225fe3d25d0c782303b",
+      "start": 16925618,
+      "registration_shape": "split",
+      "refund_bug": true
+    },
+    {
+      "name": "unwrapped_2025",
+      "address": "0x59e16fccd424cc24e280be16e11bcd56fb0ce547",
+      "start": 22764821,
+      "registration_shape": "referrer",
+      "refund_bug": false
+    }
+  ],
+  "chunk_size": 1000,
+  "status": "complete",
+  "last_error": null,
+  "completed_block_ranges_half_open": [
+    [
+      17000000,
+      17001000
+    ]
+  ],
+  "event_count": 331,
+  "total_revenue_wei": "9159982927260859305",
+  "total_revenue_eth": "9.159982927260859305",
+  "renewal_overstatement_wei": "0",
+  "legacy_split": "unavailable: reported separately as registration_combined_legacy",
+  "scope": "Ethereum .eth permanent-registrar controller fees; excludes gas, secondary sales, 2017 auctions, subnames",
+  "files_sha256": {
+    "events.csv": "75655c20a9e2ff2407d5dfd061b238c5546b29ef00ad38b9eae67f43025abb47",
+    "daily_revenue.csv": "c0635a8bb8dad5a05a9b06b40af1104d226dc072e900533d4a878e299f3eeb87",
+    "daily_activity.csv": "ed6e685697ccae9c9663ed9ee40c9b0d7e1795a1f1d060897786b41ea91dfdc7"
+  }
+}

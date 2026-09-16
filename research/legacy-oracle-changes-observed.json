@@ -1,0 +1,20 @@
+[
+  {
+    "controller": "legacy_2020",
+    "block_number": 10451343,
+    "transaction_hash": "0xd03a36423fe69c633dfc057fc1c4069db28ca2bc7172bdb3dfe0fe30b27aaf7b",
+    "topic1": "0x00000000000000000000000063faf46dadc9676745836289404b39136622b821"
+  },
+  {
+    "controller": "legacy_2020",
+    "block_number": 14678435,
+    "transaction_hash": "0x8a06952db413487b7fa8e4be8eaaf26707e5d1c3353ee97eb0aa7e35b7baa644",
+    "topic1": "0x000000000000000000000000cf7fe2e614f568989869f4aade060f4eb8a105be"
+  },
+  {
+    "controller": "legacy_2020",
+    "block_number": 14098763,
+    "transaction_hash": "0x20b29ca1acdf83af13c81c0f1eec6871299d41ff80936f7152961c9e90d03f08",
+    "topic1": "0x000000000000000000000000a51b83e420c5f82982dc8b7f4514c9bea0b290ee"
+  }
+]

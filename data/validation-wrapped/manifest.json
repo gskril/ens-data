@@ -1,0 +1,68 @@
+{
+  "chain_id": 1,
+  "start_block": 18000000,
+  "end_block": 18000999,
+  "end_block_hash": "0xdd0c94a2745c9361f40abfd5f7e48487543bb686f8034e73519a90366fac2d1e",
+  "start_timestamp": 1693066895,
+  "end_timestamp": 1693078955,
+  "created_at": "2026-09-16T17:55:55.640423+00:00",
+  "cryo_version": "0.3.2",
+  "controllers": [
+    {
+      "name": "launch_2019",
+      "address": "0xf0ad5cad05e10572efceb849f6ff0c68f9700455",
+      "start": 7000000,
+      "registration_shape": "combined",
+      "refund_bug": false
+    },
+    {
+      "name": "updated_2019",
+      "address": "0xb22c1c159d12461ea124b0deb4b5b93020e6ad16",
+      "start": 7000000,
+      "registration_shape": "combined",
+      "refund_bug": false
+    },
+    {
+      "name": "legacy_2020",
+      "address": "0x283af0b28c62c092c9727f1ee09c02ca627eb7f5",
+      "start": 9380471,
+      "registration_shape": "combined",
+      "refund_bug": false
+    },
+    {
+      "name": "wrapped_2023",
+      "address": "0x253553366da8546fc250f225fe3d25d0c782303b",
+      "start": 16925618,
+      "registration_shape": "split",
+      "refund_bug": true
+    },
+    {
+      "name": "unwrapped_2025",
+      "address": "0x59e16fccd424cc24e280be16e11bcd56fb0ce547",
+      "start": 22764821,
+      "registration_shape": "referrer",
+      "refund_bug": false
+    }
+  ],
+  "chunk_size": 1000,
+  "timestamp_source": "Alchemy transfer metadata with Cryo block fallback",
+  "status": "complete",
+  "last_error": null,
+  "completed_block_ranges_half_open": [
+    [
+      18000000,
+      18001000
+    ]
+  ],
+  "event_count": 423,
+  "total_revenue_wei": "5319095922311675670",
+  "total_revenue_eth": "5.319095922311675670",
+  "renewal_overstatement_wei": "4679979790350976",
+  "legacy_split": "unavailable: reported separately as registration_combined_legacy",
+  "scope": "Ethereum .eth permanent-registrar controller fees; excludes gas, secondary sales, 2017 auctions, subnames",
+  "files_sha256": {
+    "events.csv": "6bec586108fda0ea630ac9669e86510ca0cb66c0fdf4848b3670137829b10da2",
+    "daily_revenue.csv": "274226342e9dcfe6e111e9743ad02f4c3bcc01c2a658265aba95bc4e8be11318",
+    "daily_activity.csv": "b9cc663331485e7dddf0d3ca1ac6021dc5165c8a25185431f621378ecf2fae4d"
+  }
+}

@@ -1,0 +1,20 @@
+[project]
+name = "ens-data"
+version = "0.1.0"
+description = "Auditable ENS historical revenue exports using Cryo"
+requires-python = ">=3.12"
+dependencies = ["cryo==0.3.2", "polars>=1.0,<2", "pyarrow>=15,<26", "eth-abi>=5,<7", "eth-utils>=5,<7", "eth-hash[pycryptodome]>=0.7,<1", "requests>=2.32,<3"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+ens-data = "ens_data.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

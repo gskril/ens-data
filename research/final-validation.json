@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "event_count": 5274437,
+  "total_revenue_eth": "64954.896599198722267329",
+  "renewal_overstatement_eth": "381825.548935822465311040",
+  "daily_rows": 11260,
+  "utc_days": 2815,
+  "start_block": 7000000,
+  "end_block": 25991586,
+  "source_totals_eth": {
+    "registration_base": "4118.006556262514951005",
+    "registration_combined_legacy": "40398.054281481649055554",
+    "registration_premium": "2117.927276455335996697",
+    "renewal": "18320.908484999222264073"
+  },
+  "tests_passed": 25,
+  "checks": [
+    "contiguous complete block and expiry coverage",
+    "all export SHA-256 hashes",
+    "exact daily revenue and refund correction sums",
+    "daily unique event and duration counts",
+    "zero-filled UTC dates and boundary coverage",
+    "journal event count"
+  ]
+}
