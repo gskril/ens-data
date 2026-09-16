@@ -100,14 +100,20 @@ class DailyPrices:
         from .pipeline import atomic_json
         end = self.info["end_block"]
         path = self.directory / "phases.json"
+        phases = []
         if path.exists():
             saved = json.loads(path.read_text())
-            if saved["feed"] != FEED or saved["end_block"] != end or saved["end_block_hash"] != self.info["end_block_hash"]:
+            if saved["feed"] != FEED or saved["end_block"] > end:
                 raise ValueError("Daily price history belongs to a different snapshot")
-            return saved["phases"]
-        phases = []
+            if self.block(saved["end_block"])["hash"] != saved["end_block_hash"]:
+                raise ValueError("Saved price anchor hash changed")
+            if saved["end_block"] == end:
+                return saved["phases"]
+            phases = saved["phases"]
         count = self.integer(FEED, "phaseId()", end)
-        for phase in range(1, count + 1):
+        if count < len(phases):
+            raise ValueError("Chainlink phase count decreased")
+        for phase in range(len(phases) + 1, count + 1):
             lo, hi = 0, end
             while hi - lo > 1:
                 mid = (lo + hi) // 2
@@ -122,7 +128,31 @@ class DailyPrices:
         return phases
 
     def logs(self, phase, address, start, stop, suffix=""):
-        return self.p.collect("daily_price_logs", f"phase-{phase}-{start}-{stop}{suffix}", _dataset="logs",
+        import polars as pl
+        directory = self.p.raw / "daily_price_logs"
+        key = f"phase-{phase}-{start}-{stop}{suffix}"
+        target = directory / f"{key}.parquet"
+        # The last active phase grows on update. Reuse its frozen prefix and
+        # download only the tail, including when the phase ended in the meantime.
+        if not target.exists():
+            candidates = []
+            for path in directory.glob(f"phase-{phase}-{start}-*{suffix}.parquet"):
+                right = path.stem.removeprefix(f"phase-{phase}-{start}-")
+                if suffix:
+                    right = right.removesuffix(suffix)
+                if right.isdigit() and start < int(right) < stop:
+                    candidates.append((int(right), path))
+            if candidates:
+                old_stop, path = max(candidates)
+                tail = self.logs(phase, address, old_stop, stop, suffix)
+                frame = pl.read_parquet(path)
+                if tail:
+                    frame = pl.concat([frame, pl.DataFrame(tail, schema=frame.schema)], how="vertical_relaxed")
+                temporary = target.with_suffix(".tmp")
+                frame.write_parquet(temporary)
+                temporary.replace(target)
+                return frame.to_dicts()
+        return self.p.collect("daily_price_logs", key, _dataset="logs",
                               blocks=[f"{start}:{stop}"], contract=[address], topic0=[ANSWER_UPDATED],
                               inner_request_size=min(self.p.log_request_size, 10000)).to_dicts()
 

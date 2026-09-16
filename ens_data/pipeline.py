@@ -394,26 +394,83 @@ class Pipeline:
             self.commit_expiries(start, stop, updates)
         return len(accounted)
 
+    def update(self, end=None):
+        """Extend a complete journal; resume an interrupted extension at its frozen end."""
+        from .daily_prices import enrich
+        saved = self.db.execute("SELECT value FROM meta WHERE key='run'").fetchone()
+        if not saved:
+            raise ValueError("Restore a snapshot or finish ens-data run before update")
+        previous = json.loads(saved[0])
+        info = self.initialize(previous["start_block"], None)
+        if info["controllers"] != [c.__dict__ for c in CONTROLLERS]:
+            raise ValueError("Controller inventory changed; review coverage before extending this journal")
+        ranges = list(self.db.execute("SELECT start,stop FROM chunks ORDER BY start"))
+        expiry_ranges = list(self.db.execute("SELECT start,stop FROM expiry_chunks ORDER BY start"))
+        cursor = info["start_block"]
+        for first, stop in ranges:
+            if first != cursor or not first < stop <= info["end_block"] + 1:
+                raise ValueError("Journal coverage is not a contiguous prefix")
+            cursor = stop
+        if expiry_ranges != ranges:
+            raise ValueError("Expiry checkpoint differs from revenue coverage; repair before updating")
+        if cursor <= info["end_block"]:
+            if not info.get("extensions"):
+                raise ValueError("Finish the original snapshot with ens-data run before updating")
+            if end is not None and end != info["end_block"]:
+                raise ValueError("Resume the pending update at its saved end block first")
+            print(f"Resuming update through saved block {info['end_block']:,}", flush=True)
+            self._run(info)
+            enrich(self)
+            return
+        finalized = self.rpc.block("finalized")
+        final_number = int(finalized["number"], 16)
+        target = final_number if end is None else end
+        if not info["end_block"] <= target <= final_number:
+            raise ValueError("Require saved end block <= update end <= finalized block")
+        if target > info["end_block"]:
+            last = finalized if target == final_number else self.rpc.block(target)
+            info.setdefault("extensions", []).append(dict(
+                previous_end_block=info["end_block"], previous_end_block_hash=info["end_block_hash"],
+                end_block=target, end_block_hash=last["hash"],
+                requested_at=datetime.now(timezone.utc).isoformat()))
+            info.update(end_block=target, end_block_hash=last["hash"], end_timestamp=int(last["timestamp"], 16))
+            # A previous partial-day price must not value a newly extended day.
+            # Raw price evidence remains cached; the derived table is rebuilt.
+            (self.root / "daily_eth_usd.csv").unlink(missing_ok=True)
+            with self.db:
+                self.db.execute("UPDATE meta SET value=? WHERE key='run'", (json.dumps(info),))
+            self._run(info)
+        # Also retries a failed price refresh without acquiring older ENS logs.
+        enrich(self)
+
     def run(self, start, end):
-        info = self.initialize(start, end)
+        self._run(self.initialize(start, end))
+
+    def _run(self, info):
         error = None
         last_export = time.monotonic()
         try:
             # Resume with the original chunk boundaries even if CLI flags change.
             size = info["chunk_size"]
-            for first in range(start, info["end_block"] + 1, size):
-                if self.db.execute("SELECT 1 FROM chunks WHERE start=?", (first,)).fetchone():
+            first = info["start_block"]
+            while first <= info["end_block"]:
+                saved = self.db.execute("SELECT stop FROM chunks WHERE start=?", (first,)).fetchone()
+                if saved:
+                    stop = saved[0]
+                    if not first < stop <= info["end_block"] + 1:
+                        raise ValueError("Invalid saved chunk boundary")
                     # Upgrade existing journals by replaying only the missing base
                     # history, preserving already reconciled revenue and traces.
                     if not self.db.execute("SELECT 1 FROM expiry_chunks WHERE start=?", (first,)).fetchone():
-                        stop = min(first + size, info["end_block"] + 1)
                         updates, _ = self.expiry_history(first, stop)
                         with self.db:
                             self.commit_expiries(first, stop, updates)
+                    first = stop
                     continue
                 stop = min(first + size, info["end_block"] + 1)
                 print(f"Extracting blocks {first:,}–{stop - 1:,}", flush=True)
                 count = self.process_chunk(first, stop)
+                first = stop
                 self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
                 print(f"Committed {count:,} revenue events", flush=True)
                 if time.monotonic() - last_export >= 1800:

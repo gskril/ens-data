@@ -4,15 +4,20 @@ Cryo extracts Ethereum mainnet ENS registration/renewal logs and historical tran
 
 The included backfill is complete for blocks **7,000,000–25,991,586**, ending September 16, 2026. It contains **5,274,437 events** and **64,954.896599198722267329 ETH** of corrected revenue. Start with [data/daily_revenue.csv](data/daily_revenue.csv): **one row per UTC day, one ETH column per revenue type, total ETH, and `total_revenue_usd` at the far right**. USD uses the day's Chainlink closing price where available; historical gaps are described below. Purchased durations and unique daily counts are in [data/daily_activity.csv](data/daily_activity.csv). Boundary UTC days are flagged in the detailed source table even though the requested block range is complete.
 
-The renewal-event bug would otherwise add **381,825.548935822465311040 ETH** of refunded/repeatedly counted value to revenue. See the independently traced bulk-renewal example in the [accounting research](research/contract-accounting.md). All 30 tests passed, and [final validation](research/final-validation.json) reconciles block coverage, CSV checksums, exact totals, event counts, durations and daily USD conversion.
+The renewal-event bug would otherwise add **381,825.548935822465311040 ETH** of refunded/repeatedly counted value to revenue. See the independently traced bulk-renewal example in the [accounting research](research/contract-accounting.md). The snapshot passed 30 tests at publication, and [final validation](research/final-validation.json) reconciles block coverage, CSV checksums, exact totals, event counts, durations and daily USD conversion.
 
 ## Download the full snapshot
 
-The private [snapshot-2026-09-16 release](https://github.com/gskril/ens-data/releases/tag/snapshot-2026-09-16) holds the full `data/` snapshot, including the compressed event CSV, raw Cryo evidence and SQLite checkpoint. Git contains the smaller daily CSVs, manifests, source code, tests and research. GitHub blocks Git files over 100 MiB and limits individual release assets to less than 2 GiB, so the archive is split into 1 GiB parts. Credentials, runtime environments, logs and temporary SQLite sidecars are excluded.
+The public [snapshot-2026-09-16 release](https://github.com/gskril/ens-data/releases/tag/snapshot-2026-09-16) holds the full `data/` snapshot, including the compressed event CSV, raw Cryo evidence and SQLite checkpoint. Git contains the smaller daily CSVs, manifests, source code, tests and research. GitHub blocks Git files over 100 MiB and limits individual release assets to less than 2 GiB, so the archive is split into 1 GiB parts. Credentials, runtime environments, logs and temporary SQLite sidecars are excluded.
 
-From a fresh clone, authenticate with an account that can access the private repository, then restore the data:
+Requirements: Python 3.12 or newer, [uv](https://docs.astral.sh/uv/), Git, and the GitHub CLI (`gh`). Allow at least 20 GB of free disk for archives, restored data, dependencies and temporary exports. The repository and release are public; `gh release download` may require `gh auth login` for the CLI itself. No project-specific access is required.
+
+Clone the code, install the locked dependencies, then restore both the base archive and its update:
 
 ```sh
+git clone https://github.com/gskril/ens-data.git
+cd ens-data
+uv sync --locked
 mkdir -p releases
 gh release download snapshot-2026-09-16 --repo gskril/ens-data \
   --dir releases --pattern 'snapshot-2026-09-16.tar.gz.part-*' --pattern SHA256SUMS \
@@ -24,11 +29,36 @@ tar -xzf releases/daily-revenue-wide-update.tar.gz
 
 Extraction restores the frozen snapshot and overwrites matching `data/` files; use a fresh clone to preserve any newer local runs. The exclusion skips obsolete spot-check folders in the original archive. The update archive applies the current daily CSV layout, Chainlink daily prices and their raw evidence, and updated manifest over the original snapshot. Archive checksums are supplied alongside the assets; the restored `data/manifest.json` also contains checksums for each final CSV. The release also provides `daily_revenue.csv` as a standalone download. See GitHub's [large-file guidance](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github) and [release limits](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
 
-## Run
+## Reproduce the downloaded snapshot
+
+Verify the restored CSVs against the manifest, offline:
 
 ```sh
-uv sync --locked
-# Set ETH_RPC_URL in your environment, or load your private .env:
+uv run python - <<'PY'
+import json
+from pathlib import Path
+from ens_data.pipeline import file_sha256
+root = Path("data")
+manifest = json.loads((root / "manifest.json").read_text())
+assert manifest["status"] == "complete"
+for name, expected in manifest["files_sha256"].items():
+    assert file_sha256(root / name) == expected, name
+print("All snapshot CSV checksums match")
+PY
+uv run pytest -q
+```
+
+`uv run ens-data export --output data` regenerates all revenue/activity CSVs and the event audit from the restored SQLite journal, using the saved daily prices, with no RPC calls. This scans all 5.27 million events and rewrites the large audit file, so allow several minutes. Save the original manifest before export if you want to compare regenerated hashes with the published values. The research validation report remains a record of the published September 16 snapshot.
+
+To reproduce acquisition from the blockchain itself, use `run` with explicit bounds and a separate output directory, as shown below. An Ethereum mainnet RPC must support historical logs, historical `eth_call`, block headers and `trace_transaction`. The Alchemy account tested for the snapshot supported these methods; a logs-only or non-archive endpoint is insufficient. Bring your own RPC URL: credentials are deliberately excluded from GitHub.
+
+## Configure the RPC and run
+
+```sh
+# Create .env if absent, then edit it to set your own RPC URL:
+test -f .env || cp .env.example .env
+chmod 600 .env
+# Edit .env before continuing. Load it in each new shell:
 set -a
 . ./.env
 set +a
@@ -38,9 +68,21 @@ uv run ens-data prices --output data --log-request-size 10000 \
   --requests-per-second 20 --concurrency 4
 ```
 
-The default range starts at block 7,000,000 (a conservative floor preceding the 2019 permanent registrar) and ends at the RPC's finalized block. Both CLI bounds are **inclusive**. The end block and its hash are frozen in the journal: repeating the same command resumes the same snapshot. Use another output directory for a new snapshot/range. The local `.env` is ignored and must not be committed.
+The default range starts at block 7,000,000 (a conservative floor preceding the 2019 permanent registrar) and ends at the RPC's finalized block. Both CLI bounds are **inclusive**. The end block and its hash are frozen in the journal: repeating `run` resumes the same snapshot. Use `update` below to extend a restored snapshot, or another output directory for an independent range. The local `.env` is ignored and must not be committed. The rate settings above were tested with the supplied Alchemy account; reduce them to your provider's limits. See [RPC findings](research/alchemy.md).
 
 The supplied public RPC's mainnet route is `https://evm.stupidtech.net/v1/1`; use `--requests-per-second 1 --concurrency 1 --log-request-size 2000` with it. It publishes a limit of 60 requests per minute. Cryo also makes provider metadata requests, so occasional throttling may still require a retry.
+
+To independently recreate the exact published block range without its journal/cache:
+
+```sh
+uv run ens-data run --start-block 7000000 --end-block 25991586 \
+  --output runs/reproduction --chunk-size 100000 --log-request-size 10000 \
+  --requests-per-second 20 --concurrency 8
+uv run ens-data prices --output runs/reproduction --log-request-size 10000 \
+  --requests-per-second 20 --concurrency 4
+```
+
+This is a full historical backfill and can take substantial RPC time. Restoring the snapshot avoids that work.
 
 For a short historical run:
 
@@ -55,6 +97,27 @@ uv run pytest -q
 After starting a default `data` backfill, `uv run python -m ens_data.warm_empty` can accelerate retired-contract scans. It first proves that each remaining interval contains zero relevant events using a full-range Cryo query, then caches those empty chunks with a proof manifest. It never assumes a retirement date.
 
 Keep exploratory runs under ignored `runs/`. The two fixtures under `tests/fixtures/` are used by regression tests. `research/` retains the accounting rationale, RPC findings and final verification summary; canonical raw data and the journal provide the detailed audit evidence.
+
+## Append new finalized blocks
+
+After restoring the full snapshot and configuring `ETH_RPC_URL`, run:
+
+```sh
+uv run ens-data update --output data --log-request-size 10000 \
+  --requests-per-second 20 --concurrency 4
+```
+
+`update` checks Ethereum mainnet, verifies the saved end-block hash and contiguous revenue/expiry checkpoints, then freezes a new finalized end block. It acquires only ENS blocks after the previous cutoff, preserving the existing journal and expiry history. The original checkpoint size is retained, including a short final chunk. The command exports the combined history and refreshes daily Chainlink prices automatically. Existing price logs and historical state checks are reused; only missing price ranges are downloaded. The formerly partial final day is recomputed so it is not valued at the old snapshot cutoff. Explicit `--end-block NUMBER` bounds are inclusive and must be finalized.
+
+If acquisition is interrupted, rerun the same `update` command: it resumes the pending frozen target before advancing again. If only the price refresh failed, run `uv run ens-data prices --output data` to retry it at the saved target. Until prices finish, positive-revenue USD cells are blank and `usd_conversion.status` is `not_indexed`. Before publishing, confirm `manifest.json` has `status: complete`, `last_error: null`, the intended end block/hash, and USD conversion metadata; then run the CSV checksum check above. The manifest records prior and new anchors under `extensions`.
+
+Run only one writer per output directory. Updating changes the local `data/` files; the published GitHub release remains frozen. Restore into another clone first if you want to retain a local copy of the original snapshot. Never concatenate daily CSVs from separate block ranges: two ranges can share a UTC day, and the final-day closing price must be recomputed.
+
+The controller inventory is explicit in `ens_data/contracts.py`. Updates cover those five controllers; future ENS deployments or pricing changes require an inventory/accounting review and tests. A changed inventory is rejected for an existing journal so historical gaps cannot be silently skipped. Chainlink phase transitions are discovered automatically.
+
+Update validation: all 39 tests pass, including interrupted resumes, short checkpoint boundaries, anchor/coverage rejection and incremental price caches. A mainnet check acquired blocks 25,991,400–25,991,586, appended through 25,992,586, and matched an independent extraction of the whole interval: 66 events, 0.689861679719419163 ETH, and identical revenue, source, activity and price CSVs. Offline export reproduced all five CSV hashes. These small exploratory exports are not part of the published snapshot; the commands can reproduce the check under `runs/`.
+
+To publish a newer snapshot, push the small CSVs, manifest, code and documentation, and create a **new dated GitHub release** with `data/events.csv.gz`, `data/journal.sqlite` and all of `data/raw/`. Stop the writer and close/checkpoint SQLite before packaging; do not omit a live WAL file from a database copy. Split archives below GitHub's per-asset limit, include SHA-256 checksums, and verify a fresh restore. Exclude `.env`, `.venv`, exploratory runs and temporary files. Keep the September 16 release and its research validation report as historical evidence; update README snapshot statistics and produce validation for the new release.
 
 ## Files
 
@@ -84,7 +147,7 @@ The detailed source table preserves canonical `revenue_wei` amounts and `revenue
 
 ## Daily USD valuation
 
-`total_revenue_usd = total_revenue_eth × closing ETH/USD price`, rounded to cents (half up) using integer arithmetic. The closing price is the last Chainlink update available before the next UTC midnight. For the unfinished final day, the cutoff is the snapshot timestamp, **2026-09-16 17:39:35 UTC**. This values the day's ETH receipts at one daily price; it does not sum transaction-time USD values.
+`total_revenue_usd = total_revenue_eth × closing ETH/USD price`, rounded to cents (half up) using integer arithmetic. The closing price is the last Chainlink update available before the next UTC midnight. For the unfinished final day, the cutoff is the snapshot timestamp (**2026-09-16 17:39:35 UTC** in the included release). This values the day's ETH receipts at one daily price; it does not sum transaction-time USD values.
 
 `ens-data prices` follows the historical [Chainlink ETH/USD feed](https://data.chain.link/feeds/ethereum/mainnet/eth-usd) across all seven aggregator phases, discovers exact activation blocks, and seeds each new phase with its existing answer. The legacy phase-two adapter reads the phase-one aggregator, so its updates come from that underlying contract. Cryo logs and historical state checks are cached under `data/raw/daily_price_logs/` and `data/raw/daily_prices/`. A closing price in each phase is independently checked against historical contract state. See [Chainlink's historical-data documentation](https://docs.chain.link/data-feeds/historical-data).
 
@@ -120,7 +183,7 @@ The five-controller inventory includes the two 2019 controllers omitted from the
 
 Scope: permanent-registrar `.eth` controller fees on Ethereum. Excludes 2017 auction deposits/burns, separate short-name auctions, secondary-market sales, gas, subname registrations, DNS imports and contracts outside this inventory. BaseRegistrar, NameWrapper and referral-forwarder events are not counted again as revenue. This measures gross controller fee collections, not subsequent treasury withdrawals or referral-program expenses.
 
-Full runs zero-fill days/sources without events. Partial runs include only observed dates, with source columns showing the acquired subtotal; consult the manifest before treating them as full-day totals. In `daily_revenue_by_source.csv`, `coverage=partial_day` flags the two boundary dates of a block interval and all rows of an incomplete backfill. Only fully acquired interior dates are marked `complete_day`. The journal and raw files belong to one immutable snapshot; do not mix caches from different runs.
+Full runs zero-fill days/sources without events. Partial runs include only observed dates, with source columns showing the acquired subtotal; consult the manifest before treating them as full-day totals. In `daily_revenue_by_source.csv`, `coverage=partial_day` flags the two boundary dates of a block interval and all rows of an incomplete backfill. Only fully acquired interior dates are marked `complete_day`. The journal and raw files belong to one anchored history. Only `update` advances its end block; do not mix unrelated journals or caches.
 
 For Alchemy, the optional Transfers API supplies block timestamps in bulk; **transfer amounts are never used for revenue**. Missing timestamps fall back to Cryo block headers. This avoids millions of individual header requests. Logs and accounting traces are always extracted by Cryo.
 
