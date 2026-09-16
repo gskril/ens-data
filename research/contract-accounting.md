@@ -4,9 +4,9 @@
 
 The deployed 2023 controller `0x253553366Da8546fC250F225fe3d25d0C782303b` emits the amount sent into `renew`, including the amount it has already refunded. The error is in the event's reported cost, not an extra fee retained by the contract.
 
-The authoritative source is the compiler metadata embedded in [ENS's WrappedETHRegistrarController deployment artifact](https://github.com/ensdomains/ens-contracts/blob/121dc232df06be28e5eabb34ebfc4bc788498c05/deployments/mainnet/WrappedETHRegistrarController.json). The renewal function is extracted locally in [WrappedETHRegistrarController-renew.sol.txt](WrappedETHRegistrarController-renew.sol.txt). Its logic checks the incoming ETH against the oracle base price, renews the name, returns the excess to the caller, then emits `msg.value` as the event's cost. Refunding ETH does not change the value of `msg.value`.
+The authoritative source is the compiler metadata embedded in [ENS's WrappedETHRegistrarController deployment artifact](https://github.com/ensdomains/ens-contracts/blob/121dc232df06be28e5eabb34ebfc4bc788498c05/deployments/mainnet/WrappedETHRegistrarController.json). The renewal function is extracted locally in [WrappedETHRegistrarController-renew.sol](WrappedETHRegistrarController-renew.sol). Its logic checks the incoming ETH against the oracle base price, renews the name, returns the excess to the caller, then emits `msg.value` as the event's cost. Refunding ETH does not change the value of `msg.value`.
 
-The later controller at `0x59E16fcCd424Cc24e280Be16E11Bcd56fb0CE547` instead emits the oracle base price. See its [deployed artifact](https://github.com/ensdomains/ens-contracts/blob/121dc232df06be28e5eabb34ebfc4bc788498c05/deployments/mainnet/ETHRegistrarController.json) and the local [renewal source](ETHRegistrarController-renew.sol.txt).
+The later controller at `0x59E16fcCd424Cc24e280Be16E11Bcd56fb0CE547` instead emits the oracle base price. See its [deployed artifact](https://github.com/ensdomains/ens-contracts/blob/121dc232df06be28e5eabb34ebfc4bc788498c05/deployments/mainnet/ETHRegistrarController.json) and the local [renewal source](ETHRegistrarController-renew.sol).
 
 ## Real transaction
 
