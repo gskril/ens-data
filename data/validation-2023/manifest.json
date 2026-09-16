@@ -61,7 +61,9 @@
   "scope": "Ethereum .eth permanent-registrar controller fees; excludes gas, secondary sales, 2017 auctions, subnames",
   "files_sha256": {
     "events.csv": "75655c20a9e2ff2407d5dfd061b238c5546b29ef00ad38b9eae67f43025abb47",
-    "daily_revenue.csv": "c0635a8bb8dad5a05a9b06b40af1104d226dc072e900533d4a878e299f3eeb87",
-    "daily_activity.csv": "ed6e685697ccae9c9663ed9ee40c9b0d7e1795a1f1d060897786b41ea91dfdc7"
-  }
+    "daily_revenue.csv": "bf97698283dcddad84c81f2dcab569cca8a9e31d656d2c05465d7d6ebbfa0154",
+    "daily_activity.csv": "ed6e685697ccae9c9663ed9ee40c9b0d7e1795a1f1d060897786b41ea91dfdc7",
+    "daily_revenue_by_source.csv": "c0635a8bb8dad5a05a9b06b40af1104d226dc072e900533d4a878e299f3eeb87"
+  },
+  "daily_revenue_layout": "one row per UTC day; source columns in ETH; total_revenue_eth last"
 }

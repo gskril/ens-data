@@ -2,9 +2,9 @@
 
 Cryo extracts Ethereum mainnet ENS registration/renewal logs and historical transaction traces. The pipeline writes exact, cash-basis daily revenue in ETH, purchased durations, and event-level evidence. No wallet or signing key is used.
 
-The included backfill is complete for blocks **7,000,000–25,991,586**, ending September 16, 2026. It contains **5,274,437 events** and **64,954.896599198722267329 ETH** of corrected revenue. Start with [data/daily_revenue.csv](data/daily_revenue.csv); purchased durations and unique daily counts are also in [data/daily_activity.csv](data/daily_activity.csv). Boundary UTC days remain flagged as partial days even though the requested block range is complete.
+The included backfill is complete for blocks **7,000,000–25,991,586**, ending September 16, 2026. It contains **5,274,437 events** and **64,954.896599198722267329 ETH** of corrected revenue. Start with [data/daily_revenue.csv](data/daily_revenue.csv): **one row per UTC day, one ETH column per revenue type, and total daily revenue in the rightmost column**. Purchased durations and unique daily counts are in [data/daily_activity.csv](data/daily_activity.csv). Boundary UTC days are flagged in the detailed source table even though the requested block range is complete.
 
-The renewal-event bug would otherwise add **381,825.548935822465311040 ETH** of refunded/repeatedly counted value to revenue. See the independently traced bulk-renewal example in the [accounting research](research/contract-accounting.md). All 25 tests passed, and [final validation](research/final-validation.json) reconciles block coverage, CSV checksums, exact totals, event counts and durations.
+The renewal-event bug would otherwise add **381,825.548935822465311040 ETH** of refunded/repeatedly counted value to revenue. See the independently traced bulk-renewal example in the [accounting research](research/contract-accounting.md). All 26 tests passed, and [final validation](research/final-validation.json) reconciles block coverage, CSV checksums, exact totals, event counts and durations.
 
 ## Download the full snapshot
 
@@ -15,12 +15,14 @@ From a fresh clone, authenticate with an account that can access the private rep
 ```sh
 mkdir -p releases
 gh release download snapshot-2026-09-16 --repo gskril/ens-data \
-  --dir releases --pattern 'snapshot-2026-09-16.tar.gz.part-*' --pattern SHA256SUMS
-(cd releases && sha256sum -c SHA256SUMS)
+  --dir releases --pattern 'snapshot-2026-09-16.tar.gz.part-*' --pattern SHA256SUMS \
+  --pattern daily-revenue-wide-update.tar.gz --pattern DAILY_CSV_SHA256SUMS
+(cd releases && sha256sum -c SHA256SUMS && sha256sum -c DAILY_CSV_SHA256SUMS)
 cat releases/snapshot-2026-09-16.tar.gz.part-* | tar -xzf -
+tar -xzf releases/daily-revenue-wide-update.tar.gz
 ```
 
-Extraction restores the frozen snapshot and overwrites matching `data/` files; use a fresh clone to preserve any newer local runs. Archive checksums are supplied in `SHA256SUMS`; the restored `data/manifest.json` also contains checksums for each final CSV. See GitHub's [large-file guidance](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github) and [release limits](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
+Extraction restores the frozen snapshot and overwrites matching `data/` files; use a fresh clone to preserve any newer local runs. The small update archive applies the one-row-per-day CSV layout and updated manifests over the original snapshot. Archive checksums are supplied alongside the assets; the restored `data/manifest.json` also contains checksums for each final CSV. The release also provides `daily_revenue.csv` as a standalone download. See GitHub's [large-file guidance](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github) and [release limits](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
 
 ## Run
 
@@ -54,12 +56,15 @@ After starting a default `data` backfill, `uv run python -m ens_data.warm_empty`
 
 | File | Contents |
 | --- | --- |
-| `data/daily_revenue.csv` | UTC date × revenue source; exact wei and fixed-point ETH; event counts and purchased duration |
+| `data/daily_revenue.csv` | One row per UTC day; revenue-type columns in ETH and rightmost `total_revenue_eth` |
+| `data/daily_revenue_by_source.csv` | Detailed UTC date × source table; exact wei/ETH, counts, duration, refund corrections and coverage flags |
 | `data/daily_activity.csv` | One row per UTC day: registration/renewal counts and duration totals, without duplicate premium rows |
 | `data/events.csv.gz` | Compressed CSV: one row per controller event, including name, transaction, log index, expiry, duration, reported/corrected fees and accounting evidence |
 | `data/manifest.json` | Requested range, finalized anchor hash, completed ranges, status, totals and CSV checksums |
 | `data/raw/` | Resumable Cryo Parquet evidence and optional timestamp metadata |
 | `data/journal.sqlite` | Transactional checkpoint and exact integer event journal; payloads use JSON or `Z1`-prefixed zlib JSON, never SQLite numeric sums |
+
+The main CSV columns, in order, are `date`, `registration_base_eth`, `registration_premium_eth`, `registration_combined_legacy_eth`, `renewal_eth`, and `total_revenue_eth`. The total is the exact sum of the four revenue columns, calculated in integer wei before decimal formatting.
 
 Revenue sources are:
 
@@ -68,9 +73,9 @@ Revenue sources are:
 - `registration_combined_legacy`: older events' exact combined registration fee. Those events **do not expose the base/premium split**. Missing breakdowns are not fabricated or assigned a zero premium.
 - `renewal`: the actual fee retained by the controller, checked against its oracle result and refund in the execution trace.
 
-`duration_seconds` measures purchased time; **duration is not a separate revenue source**. Registration duration is `expires - block.timestamp`; renewal duration comes from successive base-registrar expiries, or the matching controller invocation's calldata when history is unavailable. Premium rows carry zero duration, since the premium does not purchase additional time. Registration base already covers the entire purchased duration, so do not add duration-priced rent a second time. Sum the monetary columns across sources, but use `daily_activity.csv` for unique event counts: base and premium rows refer to the same registrations.
+`duration_seconds` measures purchased time; **duration is not a separate revenue source**. Registration duration is `expires - block.timestamp`; renewal duration comes from successive base-registrar expiries, or the matching controller invocation's calldata when history is unavailable. Premium rows in the detailed source table carry zero duration, since the premium does not purchase additional time. Registration base already covers the entire purchased duration, so do not add duration-priced rent a second time. Use `daily_activity.csv` for unique event counts: base and premium rows in the detailed table refer to the same registrations.
 
-`revenue_wei` is the canonical exact amount. `revenue_eth` is an exact decimal rendering with 18 places; no floating-point money arithmetic is used. `reported_renewal_cost_wei` preserves the erroneous original event value, and `renewal_overstatement_wei` records the removed excess. Fees are recognized on their payment day, not amortized over the registration term. USD conversion is not included.
+The detailed source table preserves canonical `revenue_wei` amounts and `revenue_eth` renderings. All ETH columns use exactly 18 decimal places; no floating-point money arithmetic is used. `reported_renewal_cost_wei` preserves the erroneous original event value, and `renewal_overstatement_wei` records the removed excess. Fees are recognized on their payment day, not amortized over the registration term. USD conversion is not included.
 
 ## Accounting bug
 
@@ -100,7 +105,7 @@ The five-controller inventory includes the two 2019 controllers omitted from the
 
 Scope: permanent-registrar `.eth` controller fees on Ethereum. Excludes 2017 auction deposits/burns, separate short-name auctions, secondary-market sales, gas, subname registrations, DNS imports and contracts outside this inventory. BaseRegistrar, NameWrapper and referral-forwarder events are not counted again as revenue. This measures gross controller fee collections, not subsequent treasury withdrawals or referral-program expenses.
 
-Full runs zero-fill days/sources without events. Partial runs do not manufacture zero revenue for missing ranges. `coverage=partial_day` flags the two boundary dates of a block interval and all rows of an incomplete backfill. Only fully acquired interior dates are marked `complete_day`. The journal and raw files belong to one immutable snapshot; do not mix caches from different runs.
+Full runs zero-fill days/sources without events. Partial runs include only observed dates, with source columns showing the acquired subtotal; consult the manifest before treating them as full-day totals. In `daily_revenue_by_source.csv`, `coverage=partial_day` flags the two boundary dates of a block interval and all rows of an incomplete backfill. Only fully acquired interior dates are marked `complete_day`. The journal and raw files belong to one immutable snapshot; do not mix caches from different runs.
 
 For Alchemy, the optional Transfers API supplies block timestamps in bulk; **transfer amounts are never used for revenue**. Missing timestamps fall back to Cryo block headers. This avoids millions of individual header requests. Logs and accounting traces are always extracted by Cryo.
 

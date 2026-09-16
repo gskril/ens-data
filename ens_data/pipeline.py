@@ -37,6 +37,28 @@ def file_sha256(path):
     return digest.hexdigest()
 
 
+def write_daily_revenue(root):
+    """Pivot source-level accounting into one exact ETH revenue row per day."""
+    root = Path(root)
+    days = defaultdict(dict)
+    with (root / "daily_revenue_by_source.csv").open(newline="") as stream:
+        for row in csv.DictReader(stream):
+            day, source = row["date"], row["source"]
+            if source not in SOURCES or source in days[day]:
+                raise ValueError("Unknown or duplicate daily revenue source")
+            days[day][source] = int(row["revenue_wei"])
+    temporary = root / "daily_revenue.csv.tmp"
+    with temporary.open("w", newline="") as stream:
+        columns = ["date", *[source + "_eth" for source in SOURCES], "total_revenue_eth"]
+        writer = csv.DictWriter(stream, fieldnames=columns)
+        writer.writeheader()
+        for day, amounts in sorted(days.items()):
+            writer.writerow({"date": day,
+                             **{source + "_eth": eth(amounts.get(source, 0)) for source in SOURCES},
+                             "total_revenue_eth": eth(sum(amounts.values()))})
+    temporary.replace(root / "daily_revenue.csv")
+
+
 def remove_merged_parts(path):
     if "__" not in path.stem:
         for child in path.parent.glob(path.stem + "__*.parquet"):
@@ -464,7 +486,7 @@ class Pipeline:
                 daily_metrics.setdefault(day, defaultdict(int))
                 for source in SOURCES:
                     groups.setdefault((day, source), defaultdict(int))
-        tmp = self.root / "daily_revenue.csv.tmp"
+        tmp = self.root / "daily_revenue_by_source.csv.tmp"
         with tmp.open("w", newline="") as f:
             columns = ["date", "source", "currency", "revenue_wei", "revenue_eth", "event_count", "duration_seconds",
                        "reported_renewal_cost_wei", "renewal_overstatement_wei", "coverage"]
@@ -479,7 +501,8 @@ class Pipeline:
                                      reported_renewal_cost_wei=group["reported_cost_wei"] if source == "renewal" else "",
                                      renewal_overstatement_wei=group["correction_wei"] if source == "renewal" else "",
                                      coverage=coverage))
-        tmp.replace(self.root / "daily_revenue.csv")
+        tmp.replace(self.root / "daily_revenue_by_source.csv")
+        write_daily_revenue(self.root)
         tmp = self.root / "daily_activity.csv.tmp"
         metric_columns = ["registration_count", "registration_duration_seconds", "renewal_count", "renewal_duration_seconds"]
         with tmp.open("w", newline="") as f:
@@ -496,10 +519,11 @@ class Pipeline:
                         total_revenue_wei=str(total_revenue), total_revenue_eth=eth(total_revenue),
                         renewal_overstatement_wei=str(total_correction),
                         accounting_methods=dict(methods),
+                        daily_revenue_layout="one row per UTC day; source columns in ETH; total_revenue_eth last",
                         journal_payload_encoding="JSON or Z1-prefixed zlib JSON",
                         legacy_split="unavailable: reported separately as registration_combined_legacy",
                         scope="Ethereum .eth permanent-registrar controller fees; excludes gas, secondary sales, 2017 auctions, subnames")
         manifest["files_sha256"] = {name: file_sha256(self.root / name)
-                                    for name in ["events.csv.gz", "daily_revenue.csv", "daily_activity.csv"]}
+                                    for name in ["events.csv.gz", "daily_revenue.csv", "daily_revenue_by_source.csv", "daily_activity.csv"]}
         atomic_json(self.root / "manifest.json", manifest)
         print(f"Exported {event_count:,} events; {eth(total_revenue)} ETH; range {manifest['status']}", flush=True)

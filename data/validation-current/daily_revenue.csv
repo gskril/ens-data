@@ -1,5 +1,2 @@
-date,source,currency,revenue_wei,revenue_eth,event_count,duration_seconds,reported_renewal_cost_wei,renewal_overstatement_wei,coverage
-2026-09-16,registration_base,ETH,5150881612174878,0.005150881612174878,1,2419200,,,partial_day
-2026-09-16,registration_combined_legacy,ETH,0,0.000000000000000000,0,0,,,partial_day
-2026-09-16,registration_premium,ETH,0,0.000000000000000000,1,0,,,partial_day
-2026-09-16,renewal,ETH,4196588813495656,0.004196588813495656,2,63072000,4196588813495656,0,partial_day
+date,registration_base_eth,registration_premium_eth,registration_combined_legacy_eth,renewal_eth,total_revenue_eth
+2026-09-16,0.005150881612174878,0.000000000000000000,0.000000000000000000,0.004196588813495656,0.009347470425670534

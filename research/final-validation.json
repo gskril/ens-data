@@ -3,7 +3,7 @@
   "event_count": 5274437,
   "total_revenue_eth": "64954.896599198722267329",
   "renewal_overstatement_eth": "381825.548935822465311040",
-  "daily_rows": 11260,
+  "daily_rows": 2815,
   "utc_days": 2815,
   "start_block": 7000000,
   "end_block": 25991586,
@@ -13,13 +13,16 @@
     "registration_premium": "2117.927276455335996697",
     "renewal": "18320.908484999222264073"
   },
-  "tests_passed": 25,
+  "tests_passed": 26,
   "checks": [
     "contiguous complete block and expiry coverage",
     "all export SHA-256 hashes",
     "exact daily revenue and refund correction sums",
     "daily unique event and duration counts",
     "zero-filled UTC dates and boundary coverage",
-    "journal event count"
-  ]
+    "journal event count",
+    "one row per UTC day with exact source columns and rightmost daily total"
+  ],
+  "source_detail_rows": 11260,
+  "daily_revenue_layout": "wide"
 }
