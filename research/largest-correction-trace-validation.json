@@ -1,9 +1,0 @@
-{
-  "transaction_hash": "0xea15c4af346390953a7afa578f31c29b94653584afcca054af31bbcc44e998a0",
-  "event_count": 18,
-  "trace_rows": 218,
-  "all_amounts_and_durations_match": true,
-  "total_reported_wei": "287508250911322946087",
-  "total_revenue_wei": "2776308749486226318",
-  "total_overstatement_wei": "284731942161836719769"
-}

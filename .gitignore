@@ -10,3 +10,5 @@ data/*.log
 *.tmp
 data/events.csv.gz
 releases/
+runs/
+data/validation-*/

@@ -8,7 +8,7 @@ The renewal-event bug would otherwise add **381,825.548935822465311040 ETH** of 
 
 ## Download the full snapshot
 
-The private [snapshot-2026-09-16 release](https://github.com/gskril/ens-data/releases/tag/snapshot-2026-09-16) holds the full `data/` snapshot, including the compressed event CSV, raw Cryo evidence, validation datasets and SQLite checkpoint. Git contains the smaller daily CSVs, manifests, source code, tests and research. GitHub blocks Git files over 100 MiB and limits individual release assets to less than 2 GiB, so the archive is split into 1 GiB parts. Credentials, runtime environments, logs and temporary SQLite sidecars are excluded.
+The private [snapshot-2026-09-16 release](https://github.com/gskril/ens-data/releases/tag/snapshot-2026-09-16) holds the full `data/` snapshot, including the compressed event CSV, raw Cryo evidence and SQLite checkpoint. Git contains the smaller daily CSVs, manifests, source code, tests and research. GitHub blocks Git files over 100 MiB and limits individual release assets to less than 2 GiB, so the archive is split into 1 GiB parts. Credentials, runtime environments, logs and temporary SQLite sidecars are excluded.
 
 From a fresh clone, authenticate with an account that can access the private repository, then restore the data:
 
@@ -18,11 +18,11 @@ gh release download snapshot-2026-09-16 --repo gskril/ens-data \
   --dir releases --pattern 'snapshot-2026-09-16.tar.gz.part-*' --pattern SHA256SUMS \
   --pattern daily-revenue-wide-update.tar.gz --pattern DAILY_CSV_SHA256SUMS
 (cd releases && sha256sum -c SHA256SUMS && sha256sum -c DAILY_CSV_SHA256SUMS)
-cat releases/snapshot-2026-09-16.tar.gz.part-* | tar -xzf -
+cat releases/snapshot-2026-09-16.tar.gz.part-* | tar --exclude='data/validation-*' -xzf -
 tar -xzf releases/daily-revenue-wide-update.tar.gz
 ```
 
-Extraction restores the frozen snapshot and overwrites matching `data/` files; use a fresh clone to preserve any newer local runs. The small update archive applies the one-row-per-day CSV layout and updated manifests over the original snapshot. Archive checksums are supplied alongside the assets; the restored `data/manifest.json` also contains checksums for each final CSV. The release also provides `daily_revenue.csv` as a standalone download. See GitHub's [large-file guidance](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github) and [release limits](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
+Extraction restores the frozen snapshot and overwrites matching `data/` files; use a fresh clone to preserve any newer local runs. The exclusion skips obsolete spot-check folders in the original archive. The small update archive applies the one-row-per-day CSV layout and updated manifest over the original snapshot. Archive checksums are supplied alongside the assets; the restored `data/manifest.json` also contains checksums for each final CSV. The release also provides `daily_revenue.csv` as a standalone download. See GitHub's [large-file guidance](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github) and [release limits](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
 
 ## Run
 
@@ -44,13 +44,15 @@ For a short historical run:
 
 ```sh
 uv run ens-data run --start-block 18000000 --end-block 18000999 \
-  --output data/validation-wrapped --requests-per-second 10 --concurrency 4
+  --output runs/smoke --requests-per-second 10 --concurrency 4
 uv run pytest -q
 ```
 
 `uv run ens-data export --output data` regenerates the CSVs from the local journal without network access. During long runs, CSV snapshots are refreshed about every 30 minutes after a chunk finishes, and on normal completion or a handled error. Every completed chunk is checkpointed immediately, independently of CSV refreshes. The manifest is authoritative about completeness; a running backfill is not a completed historical dataset.
 
 After starting a default `data` backfill, `uv run python -m ens_data.warm_empty` can accelerate retired-contract scans. It first proves that each remaining interval contains zero relevant events using a full-range Cryo query, then caches those empty chunks with a proof manifest. It never assumes a retirement date.
+
+Keep exploratory runs under ignored `runs/`. The two fixtures under `tests/fixtures/` are used by regression tests. `research/` retains the accounting rationale, RPC findings and final verification summary; canonical raw data and the journal provide the detailed audit evidence.
 
 ## Files
 
