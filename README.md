@@ -2,9 +2,9 @@
 
 Cryo extracts Ethereum mainnet ENS registration/renewal logs and historical transaction traces. The pipeline writes exact, cash-basis daily revenue in ETH, purchased durations, and event-level evidence. No wallet or signing key is used.
 
-The included backfill is complete for blocks **7,000,000–25,991,586**, ending September 16, 2026. It contains **5,274,437 events** and **64,954.896599198722267329 ETH** of corrected revenue. Start with [data/daily_revenue.csv](data/daily_revenue.csv): **one row per UTC day, one ETH column per revenue type, and total daily revenue in the rightmost column**. Purchased durations and unique daily counts are in [data/daily_activity.csv](data/daily_activity.csv). Boundary UTC days are flagged in the detailed source table even though the requested block range is complete.
+The included backfill is complete for blocks **7,000,000–25,991,586**, ending September 16, 2026. It contains **5,274,437 events** and **64,954.896599198722267329 ETH** of corrected revenue. Start with [data/daily_revenue.csv](data/daily_revenue.csv): **one row per UTC day, one ETH column per revenue type, total ETH, and `total_revenue_usd` at the far right**. USD uses the day's Chainlink closing price where available; historical gaps are described below. Purchased durations and unique daily counts are in [data/daily_activity.csv](data/daily_activity.csv). Boundary UTC days are flagged in the detailed source table even though the requested block range is complete.
 
-The renewal-event bug would otherwise add **381,825.548935822465311040 ETH** of refunded/repeatedly counted value to revenue. See the independently traced bulk-renewal example in the [accounting research](research/contract-accounting.md). All 26 tests passed, and [final validation](research/final-validation.json) reconciles block coverage, CSV checksums, exact totals, event counts and durations.
+The renewal-event bug would otherwise add **381,825.548935822465311040 ETH** of refunded/repeatedly counted value to revenue. See the independently traced bulk-renewal example in the [accounting research](research/contract-accounting.md). All 30 tests passed, and [final validation](research/final-validation.json) reconciles block coverage, CSV checksums, exact totals, event counts, durations and daily USD conversion.
 
 ## Download the full snapshot
 
@@ -22,7 +22,7 @@ cat releases/snapshot-2026-09-16.tar.gz.part-* | tar --exclude='data/validation-
 tar -xzf releases/daily-revenue-wide-update.tar.gz
 ```
 
-Extraction restores the frozen snapshot and overwrites matching `data/` files; use a fresh clone to preserve any newer local runs. The exclusion skips obsolete spot-check folders in the original archive. The small update archive applies the one-row-per-day CSV layout and updated manifest over the original snapshot. Archive checksums are supplied alongside the assets; the restored `data/manifest.json` also contains checksums for each final CSV. The release also provides `daily_revenue.csv` as a standalone download. See GitHub's [large-file guidance](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github) and [release limits](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
+Extraction restores the frozen snapshot and overwrites matching `data/` files; use a fresh clone to preserve any newer local runs. The exclusion skips obsolete spot-check folders in the original archive. The update archive applies the current daily CSV layout, Chainlink daily prices and their raw evidence, and updated manifest over the original snapshot. Archive checksums are supplied alongside the assets; the restored `data/manifest.json` also contains checksums for each final CSV. The release also provides `daily_revenue.csv` as a standalone download. See GitHub's [large-file guidance](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github) and [release limits](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
 
 ## Run
 
@@ -34,6 +34,8 @@ set -a
 set +a
 uv run ens-data run --output data --chunk-size 100000 \
   --log-request-size 10000 --requests-per-second 20 --concurrency 8
+uv run ens-data prices --output data --log-request-size 10000 \
+  --requests-per-second 20 --concurrency 4
 ```
 
 The default range starts at block 7,000,000 (a conservative floor preceding the 2019 permanent registrar) and ends at the RPC's finalized block. Both CLI bounds are **inclusive**. The end block and its hash are frozen in the journal: repeating the same command resumes the same snapshot. Use another output directory for a new snapshot/range. The local `.env` is ignored and must not be committed.
@@ -58,7 +60,8 @@ Keep exploratory runs under ignored `runs/`. The two fixtures under `tests/fixtu
 
 | File | Contents |
 | --- | --- |
-| `data/daily_revenue.csv` | One row per UTC day; revenue-type columns in ETH and rightmost `total_revenue_eth` |
+| `data/daily_revenue.csv` | One row per UTC day; revenue-type columns in ETH, total ETH, and rightmost `total_revenue_usd` |
+| `data/daily_eth_usd.csv` | Closing ETH/USD price, quote timestamp/age, feed phase, block/log evidence, and availability status |
 | `data/daily_revenue_by_source.csv` | Detailed UTC date × source table; exact wei/ETH, counts, duration, refund corrections and coverage flags |
 | `data/daily_activity.csv` | One row per UTC day: registration/renewal counts and duration totals, without duplicate premium rows |
 | `data/events.csv.gz` | Compressed CSV: one row per controller event, including name, transaction, log index, expiry, duration, reported/corrected fees and accounting evidence |
@@ -66,7 +69,7 @@ Keep exploratory runs under ignored `runs/`. The two fixtures under `tests/fixtu
 | `data/raw/` | Resumable Cryo Parquet evidence and optional timestamp metadata |
 | `data/journal.sqlite` | Transactional checkpoint and exact integer event journal; payloads use JSON or `Z1`-prefixed zlib JSON, never SQLite numeric sums |
 
-The main CSV columns, in order, are `date`, `registration_base_eth`, `registration_premium_eth`, `registration_combined_legacy_eth`, `renewal_eth`, and `total_revenue_eth`. The total is the exact sum of the four revenue columns, calculated in integer wei before decimal formatting.
+The main CSV columns, in order, are `date`, `registration_base_eth`, `registration_premium_eth`, `registration_combined_legacy_eth`, `renewal_eth`, `total_revenue_eth`, and `total_revenue_usd`. Total ETH is the exact sum of the four source columns, calculated in integer wei before decimal formatting.
 
 Revenue sources are:
 
@@ -77,7 +80,17 @@ Revenue sources are:
 
 `duration_seconds` measures purchased time; **duration is not a separate revenue source**. Registration duration is `expires - block.timestamp`; renewal duration comes from successive base-registrar expiries, or the matching controller invocation's calldata when history is unavailable. Premium rows in the detailed source table carry zero duration, since the premium does not purchase additional time. Registration base already covers the entire purchased duration, so do not add duration-priced rent a second time. Use `daily_activity.csv` for unique event counts: base and premium rows in the detailed table refer to the same registrations.
 
-The detailed source table preserves canonical `revenue_wei` amounts and `revenue_eth` renderings. All ETH columns use exactly 18 decimal places; no floating-point money arithmetic is used. `reported_renewal_cost_wei` preserves the erroneous original event value, and `renewal_overstatement_wei` records the removed excess. Fees are recognized on their payment day, not amortized over the registration term. USD conversion is not included.
+The detailed source table preserves canonical `revenue_wei` amounts and `revenue_eth` renderings. All ETH columns use exactly 18 decimal places; no floating-point money arithmetic is used. `reported_renewal_cost_wei` preserves the erroneous original event value, and `renewal_overstatement_wei` records the removed excess. Fees are recognized on their payment day, not amortized over the registration term.
+
+## Daily USD valuation
+
+`total_revenue_usd = total_revenue_eth × closing ETH/USD price`, rounded to cents (half up) using integer arithmetic. The closing price is the last Chainlink update available before the next UTC midnight. For the unfinished final day, the cutoff is the snapshot timestamp, **2026-09-16 17:39:35 UTC**. This values the day's ETH receipts at one daily price; it does not sum transaction-time USD values.
+
+`ens-data prices` follows the historical [Chainlink ETH/USD feed](https://data.chain.link/feeds/ethereum/mainnet/eth-usd) across all seven aggregator phases, discovers exact activation blocks, and seeds each new phase with its existing answer. The legacy phase-two adapter reads the phase-one aggregator, so its updates come from that underlying contract. Cryo logs and historical state checks are cached under `data/raw/daily_price_logs/` and `data/raw/daily_prices/`. A closing price in each phase is independently checked against historical contract state. See [Chainlink's historical-data documentation](https://docs.chain.link/data-feeds/historical-data).
+
+The available feed lineage begins on **2020-01-15**, followed by an inactive period through **2020-04-07**. Quotes older than 24 hours are marked `stale` and excluded from conversion. In this snapshot, **333 revenue-bearing dates lack a usable price**, so their USD values are blank; zero ETH revenue remains `0.00` USD. The price CSV records these gaps explicitly. The USD sum therefore covers only priced dates. No alternate price provider is silently substituted.
+
+Normal offline `ens-data export` reuses the saved daily prices. A fresh extraction has blank USD values for positive revenue until `ens-data prices` is run. Original ETH fees and renewal corrections do not change.
 
 ## Accounting bug
 

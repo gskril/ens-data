@@ -39,7 +39,9 @@ def file_sha256(path):
 
 def write_daily_revenue(root):
     """Pivot source-level accounting into one exact ETH revenue row per day."""
+    from .daily_prices import read_prices, usd_amount
     root = Path(root)
+    prices = read_prices(root)
     days = defaultdict(dict)
     with (root / "daily_revenue_by_source.csv").open(newline="") as stream:
         for row in csv.DictReader(stream):
@@ -49,13 +51,14 @@ def write_daily_revenue(root):
             days[day][source] = int(row["revenue_wei"])
     temporary = root / "daily_revenue.csv.tmp"
     with temporary.open("w", newline="") as stream:
-        columns = ["date", *[source + "_eth" for source in SOURCES], "total_revenue_eth"]
+        columns = ["date", *[source + "_eth" for source in SOURCES], "total_revenue_eth", "total_revenue_usd"]
         writer = csv.DictWriter(stream, fieldnames=columns)
         writer.writeheader()
         for day, amounts in sorted(days.items()):
             writer.writerow({"date": day,
                              **{source + "_eth": eth(amounts.get(source, 0)) for source in SOURCES},
-                             "total_revenue_eth": eth(sum(amounts.values()))})
+                             "total_revenue_eth": eth(sum(amounts.values())),
+                             "total_revenue_usd": usd_amount(sum(amounts.values()), prices.get(day))})
     temporary.replace(root / "daily_revenue.csv")
 
 
@@ -519,11 +522,19 @@ class Pipeline:
                         total_revenue_wei=str(total_revenue), total_revenue_eth=eth(total_revenue),
                         renewal_overstatement_wei=str(total_correction),
                         accounting_methods=dict(methods),
-                        daily_revenue_layout="one row per UTC day; source columns in ETH; total_revenue_eth last",
+                        daily_revenue_layout="one row per UTC day; source columns in ETH; total_revenue_usd last",
                         journal_payload_encoding="JSON or Z1-prefixed zlib JSON",
                         legacy_split="unavailable: reported separately as registration_combined_legacy",
                         scope="Ethereum .eth permanent-registrar controller fees; excludes gas, secondary sales, 2017 auctions, subnames")
         manifest["files_sha256"] = {name: file_sha256(self.root / name)
                                     for name in ["events.csv.gz", "daily_revenue.csv", "daily_revenue_by_source.csv", "daily_activity.csv"]}
+        if (self.root / "daily_eth_usd.csv").exists():
+            previous = json.loads((self.root / "manifest.json").read_text())
+            if previous["end_block_hash"] != info["end_block_hash"]:
+                raise ValueError("Daily prices belong to a different snapshot")
+            manifest["usd_conversion"] = previous["usd_conversion"]
+            manifest["files_sha256"]["daily_eth_usd.csv"] = file_sha256(self.root / "daily_eth_usd.csv")
+        else:
+            manifest["usd_conversion"] = {"status": "not_indexed", "command": "ens-data prices"}
         atomic_json(self.root / "manifest.json", manifest)
         print(f"Exported {event_count:,} events; {eth(total_revenue)} ETH; range {manifest['status']}", flush=True)

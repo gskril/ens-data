@@ -19,7 +19,8 @@ def test_export_reconciles_and_keeps_incomplete_ranges_explicit(tmp_path):
     assert len(rows) == 1  # no fake zero days/sources for incomplete acquisitions
     assert rows[0]["renewal_eth"] == "0.000000000000000100"
     assert rows[0]["total_revenue_eth"] == "0.000000000000000100"
-    assert list(rows[0])[-1] == "total_revenue_eth"
+    assert list(rows[0])[-1] == "total_revenue_usd"
+    assert rows[0]["total_revenue_usd"] == ""
     details = list(csv.DictReader((tmp_path / "daily_revenue_by_source.csv").open()))
     assert details[0]["renewal_overstatement_wei"] == "20"
     assert details[0]["coverage"] == "partial_day"
@@ -48,7 +49,8 @@ def test_daily_total_adds_base_premium_legacy_and_renewal_once(tmp_path):
     assert rows == [{"date": "2023-11-14", "registration_base_eth": "1.000000000000000001",
                      "registration_premium_eth": "2.000000000000000002",
                      "registration_combined_legacy_eth": "4.000000000000000004",
-                     "renewal_eth": "0.000000000000000100", "total_revenue_eth": "7.000000000000000107"}]
+                     "renewal_eth": "0.000000000000000100", "total_revenue_eth": "7.000000000000000107",
+                     "total_revenue_usd": ""}]
 
 
 def test_compressed_journal_preserves_arbitrary_integer_precision():

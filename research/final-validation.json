@@ -13,7 +13,7 @@
     "registration_premium": "2117.927276455335996697",
     "renewal": "18320.908484999222264073"
   },
-  "tests_passed": 26,
+  "tests_passed": 30,
   "checks": [
     "contiguous complete block and expiry coverage",
     "all export SHA-256 hashes",
@@ -21,8 +21,19 @@
     "daily unique event and duration counts",
     "zero-filled UTC dates and boundary coverage",
     "journal event count",
-    "one row per UTC day with exact source columns and rightmost daily total"
+    "one row per UTC day with exact source columns and exact daily ETH total",
+    "all ETH columns unchanged by USD enrichment",
+    "daily USD independently reconciled with Decimal arithmetic",
+    "historical closing-price state check in all seven Chainlink phases"
   ],
   "source_detail_rows": 11260,
-  "daily_revenue_layout": "wide"
+  "daily_revenue_layout": "wide; total_revenue_usd last",
+  "usd_conversion": {
+    "priced_days": 2354,
+    "missing_price_revenue_days": 333,
+    "missing_price_revenue_eth": "2821.099357505964491032",
+    "first_priced_day": "2020-01-15",
+    "total_usd_for_priced_days": "128872452.17",
+    "last_day_price_status": "snapshot_cutoff"
+  }
 }
