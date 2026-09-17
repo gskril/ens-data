@@ -155,6 +155,10 @@ The available feed lineage begins on **2020-01-15**, followed by an inactive per
 
 Normal offline `ens-data export` reuses the saved daily prices. A fresh extraction has blank USD values for positive revenue until `ens-data prices` is run. Original ETH fees and renewal corrections do not change.
 
+## External dashboard comparison
+
+The [September 17 dashboard reconciliation](research/dashboard-comparison.md) compares this dataset with the public ENS Data Studio report. ETH matches through December 6, 2025 to floating-point precision and differs by 0.108% across the full common history. Recent periods have larger discrepancies consistent with missing legacy-controller activity and stale dashboard USD pricing; see the captured values and reproducible comparison before treating recent totals as aligned.
+
 ## Accounting bug
 
 The 2023 wrapped controller (`0x253553…2303b`) emits `NameRenewed.cost = msg.value`, even after refunding `msg.value - price.base`. Its event can overstate renewal revenue. Both values are ETH wei; this is **not a USD-unit field**. See [research/contract-accounting.md](research/contract-accounting.md) for deployed source, transaction evidence and the correction.
