@@ -7,13 +7,14 @@ import './style.css';
 
 const repo = 'https://github.com/gskril/ens-data';
 const views = {
-  revenue: { label: 'Revenue', unit: 'ETH', keys: ['total_revenue_eth'], names: ['Total revenue'], source: 'daily_revenue.csv' },
-  sources: { label: 'Revenue by source', unit: 'ETH', keys: revenueKeys.slice(0, 4), names: ['Registration base', 'Registration premium', 'Legacy registration (combined)', 'Renewals'], source: 'daily_revenue.csv' },
+  revenue: { label: 'Revenue in ETH', unit: 'ETH', keys: ['total_revenue_eth'], names: ['Total revenue in ETH'], source: 'daily_revenue.csv' },
+  sources: { label: 'Revenue by source (ETH)', unit: 'ETH', keys: revenueKeys.slice(0, 4), names: ['Registration base', 'Registration premium', 'Legacy registration (combined)', 'Renewals'], source: 'daily_revenue.csv' },
   usd: { label: 'Revenue in USD', unit: 'USD', keys: ['total_revenue_usd'], names: ['Revenue in USD'], source: 'daily_revenue.csv' },
-  activity: { label: 'Activity', unit: 'events', keys: ['registration_count', 'renewal_count'], names: ['Registrations', 'Renewals'], source: 'daily_activity.csv' },
-  duration: { label: 'Purchased duration', unit: 'years', keys: ['registration_years', 'renewal_years'], names: ['Registration years', 'Renewal years'], source: 'daily_activity.csv' },
+  activity: { label: 'Registrations and renewals (count)', unit: 'events', keys: ['registration_count', 'renewal_count'], names: ['Registrations', 'Renewals'], source: 'daily_activity.csv' },
+  duration: { label: 'Purchased duration (years)', unit: 'years', keys: ['registration_years', 'renewal_years'], names: ['Registration years', 'Renewal years'], source: 'daily_activity.csv' },
 };
 type View = keyof typeof views;
+const firstActivityDate = (rows: Row[]) => (rows.find(row => ['total_revenue_eth', 'registration_count', 'renewal_count'].some(key => Number(row[key]) > 0)) ?? rows[0]).date;
 const colors = ['#3478ec', '#23a88a', '#a082cf', '#e6a345'];
 const compact = (value: number) => new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
 const number = (value: number) => new Intl.NumberFormat('en', { maximumFractionDigits: 2 }).format(value);
@@ -47,7 +48,7 @@ function App() {
             renewal_years: activityRow.renewal_duration_seconds === null ? null : Number(activityRow.renewal_duration_seconds) / 31557600 };
         });
         setData(combined);
-        setStart(combined[0].date);
+        setStart(firstActivityDate(combined));
         setEnd(combined.at(-1)!.date);
       } catch (err) { if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Unable to load the data.'); }
     }
@@ -64,7 +65,7 @@ function App() {
     const latest = data.at(-1)!.date;
     const first = new Date(`${latest}T00:00:00Z`);
     if (days) first.setUTCDate(first.getUTCDate() - days + 1);
-    setStart(days ? [data[0].date, first.toISOString().slice(0, 10)].sort().at(-1)! : data[0].date);
+    setStart(days ? [firstActivityDate(data), first.toISOString().slice(0, 10)].sort().at(-1)! : firstActivityDate(data));
     setEnd(latest);
   }
   function download() {

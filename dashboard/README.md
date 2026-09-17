@@ -15,7 +15,7 @@ The dev/build commands copy only `data/daily_revenue.csv` and `data/daily_activi
 ## Features and interpretation
 
 - Revenue in ETH or USD, revenue sources, event counts, and purchased years.
-- Inclusive UTC date filters and presets ending at the snapshot's latest date.
+- Inclusive UTC date filters and presets ending at the snapshot's latest date. The default and All time ranges begin on the first date with ETH revenue, registrations, or renewals, shared across all views. Earlier zero-activity dates remain available through the date inputs; switching views preserves the chosen range.
 - Daily, Monday-based weekly, or monthly sums; line, stacked area, and stacked bar charts.
 - Toggle series, inspect tooltips, view an accessible data table, export the filtered/aggregated view, or download the original CSVs.
 - Missing USD prices remain null. An aggregated period containing a missing price is also null. The USD summary explicitly totals priced dates only.
