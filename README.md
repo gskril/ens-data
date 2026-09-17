@@ -12,7 +12,7 @@ The public [snapshot-2026-09-16 release](https://github.com/gskril/ens-data/rele
 
 Requirements: Python 3.12 or newer, [uv](https://docs.astral.sh/uv/), Git, and the GitHub CLI (`gh`). Allow at least 20 GB of free disk for archives, restored data, dependencies and temporary exports. The repository and release are public; `gh release download` may require `gh auth login` for the CLI itself. No project-specific access is required.
 
-Clone the code, install the locked dependencies, then restore both the base archive and its update:
+Clone the code, install the locked dependencies, then restore the consolidated snapshot:
 
 ```sh
 git clone https://github.com/gskril/ens-data.git
@@ -20,14 +20,12 @@ cd ens-data
 uv sync --locked
 mkdir -p releases
 gh release download snapshot-2026-09-16 --repo gskril/ens-data \
-  --dir releases --pattern 'snapshot-2026-09-16.tar.gz.part-*' --pattern SHA256SUMS \
-  --pattern daily-revenue-wide-update.tar.gz --pattern DAILY_CSV_SHA256SUMS
-(cd releases && sha256sum -c SHA256SUMS && sha256sum -c DAILY_CSV_SHA256SUMS)
-cat releases/snapshot-2026-09-16.tar.gz.part-* | tar --exclude='data/validation-*' -xzf -
-tar -xzf releases/daily-revenue-wide-update.tar.gz
+  --dir releases --pattern 'snapshot-2026-09-16-clean.tar.gz.part-*' --pattern SHA256SUMS
+(cd releases && sha256sum -c SHA256SUMS)
+cat releases/snapshot-2026-09-16-clean.tar.gz.part-* | tar -xzf -
 ```
 
-Extraction restores the frozen snapshot and overwrites matching `data/` files; use a fresh clone to preserve any newer local runs. The exclusion skips obsolete spot-check folders in the original archive. The update archive applies the current daily CSV layout, Chainlink daily prices and their raw evidence, and updated manifest over the original snapshot. Archive checksums are supplied alongside the assets; the restored `data/manifest.json` also contains checksums for each final CSV. The release also provides `daily_revenue.csv` as a standalone download. See GitHub's [large-file guidance](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github) and [release limits](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
+Extraction restores the frozen snapshot and overwrites matching `data/` files; use a fresh clone to preserve any newer local runs. The consolidated archive includes the current daily revenue layout, Chainlink daily prices and raw evidence, event audit, journal and manifest. Obsolete validation runs are excluded from the archive itself; no update archive or extraction exclusions are needed. `SHA256SUMS` verifies the archive parts, `ARCHIVE_VALIDATION.json` records packaging checks, and the restored `data/manifest.json` contains checksums for each final CSV. The release also provides `daily_revenue.csv` and `daily_eth_usd.csv` as standalone downloads. See GitHub's [large-file guidance](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github) and [release limits](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
 
 ## Reproduce the downloaded snapshot
 
