@@ -3,7 +3,7 @@ import json
 import gzip
 import zlib
 
-from ens_data.pipeline import Pipeline, load_event
+from ens_data.pipeline import Pipeline, load_event, file_sha256, split_large_csv
 from test_accounting import event, renewal
 from ens_data.accounting import account_transaction
 
@@ -51,6 +51,24 @@ def test_daily_total_adds_base_premium_legacy_and_renewal_once(tmp_path):
                      "registration_combined_legacy_eth": "4.000000000000000004",
                      "renewal_eth": "0.000000000000000100", "total_revenue_eth": "7.000000000000000107",
                      "total_revenue_usd": ""}]
+    path = tmp_path / "name_events" / "2023.csv"
+    with path.open(encoding="utf-8", newline="") as stream:
+        simple = list(csv.DictReader(stream))
+    assert simple == [
+        {"name": row["name"] + ".eth", "event": kind, "price_eth": price, "date": "2023-11-14"}
+        for row, kind, price in [
+            (renewal_row, "renew", "0.000000000000000100"),
+            (split, "register", "3.000000000000000003"),
+            (legacy, "register", "4.000000000000000004"),
+        ]
+    ]
+    assert list(simple[0]) == ["name", "event", "price_eth", "date"]
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["files_sha256"]["name_events/2023.csv"] == file_sha256(path)
+    before = path.read_bytes()
+    p.export(dict(start_block=17_000_000, end_block=17_000_000,
+                  start_timestamp=1_700_000_000, end_timestamp=1_700_000_100))
+    assert path.read_bytes() == before
 
 
 def test_compressed_journal_preserves_arbitrary_integer_precision():
@@ -58,3 +76,51 @@ def test_compressed_journal_preserves_arbitrary_integer_precision():
     raw = json.dumps(event)
     assert load_event(raw) == event
     assert load_event(b"Z1" + zlib.compress(raw.encode())) == event
+
+
+def test_name_events_split_years_and_refresh_existing_exports(tmp_path):
+    p = Pipeline(tmp_path, "unused")
+    first = account_transaction([event()], 1_700_000_000, renewal([]))[0]
+    first["name"] = '猫,"example'
+    info = dict(start_block=17_000_000, end_block=17_000_002,
+                start_timestamp=1_700_000_000, end_timestamp=1_735_689_600)
+    def insert(row):
+        p.db.execute("INSERT INTO events VALUES (?,?,?,?)",
+                     (row["transaction_hash"], row["log_index"], row["block_number"], json.dumps(row)))
+    insert(first)
+    p.export(info)
+    second = dict(first, log_index=2, date="2024-01-01")
+    third = dict(first, log_index=3, date="2023-12-31")
+    insert(second)
+    insert(third)
+    stale = tmp_path / "name_events" / "2000.csv"
+    stale.write_text("stale")
+    p.export(info)
+    root = tmp_path / "name_events"
+    assert sorted(path.name for path in root.iterdir()) == ["2023.csv", "2024.csv"]
+    for year, expected in [("2023", [first, third]), ("2024", [second])]:
+        with (root / f"{year}.csv").open(encoding="utf-8", newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        assert [row["date"] for row in rows] == [row["date"] for row in expected]
+        assert all(row["name"] == '猫,"example.eth' for row in rows)
+
+
+def test_oversized_year_parts_preserve_csv_records(tmp_path):
+    path = tmp_path / "2022.csv"
+    rows = [["name", "event", "price_eth", "date"]] + [
+        ['猫,"line\nbreak.eth', "register", "1.000000000000000001", "2022-01-01"]
+    ] * 5
+    with path.open("w", encoding="utf-8", newline="") as stream:
+        csv.writer(stream).writerows(rows)
+    parts = split_large_csv(path, limit=180)
+    assert len(parts) > 1
+    assert not path.exists()
+    restored = []
+    for part in parts:
+        assert part.stat().st_size <= 180
+        with part.open(encoding="utf-8", newline="") as stream:
+            reader = csv.reader(stream)
+            assert next(reader) == rows[0]
+            restored.extend(reader)
+    assert restored == rows[1:]
+    assert split_large_csv(parts[0], limit=180) == [parts[0]]

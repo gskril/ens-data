@@ -8,6 +8,7 @@ import sqlite3
 import time
 import zlib
 from collections import defaultdict
+from contextlib import ExitStack
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -35,6 +36,41 @@ def file_sha256(path):
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def split_large_csv(path, limit=95 * 1024 * 1024):
+    """Keep yearly exports within Git hosting limits without splitting records."""
+    if path.stat().st_size <= limit:
+        return [path]
+    csv.field_size_limit(max(csv.field_size_limit(), limit))
+    parts = []
+    with path.open(encoding="utf-8", newline="") as source, ExitStack() as outputs:
+        reader = csv.reader(source)
+        buffer = io.StringIO(newline="")
+        writer = csv.writer(buffer)
+        writer.writerow(next(reader))
+        header = buffer.getvalue().encode("utf-8")
+        size = limit
+        for row in reader:
+            buffer.seek(0)
+            buffer.truncate()
+            writer.writerow(row)
+            data = buffer.getvalue().encode("utf-8")
+            if size + len(data) > limit:
+                if len(header) + len(data) > limit:
+                    raise ValueError("Single CSV record exceeds file size limit")
+                outputs.close()
+                part = path.with_name(f"{path.stem}-part{len(parts) + 1}.csv")
+                parts.append(part)
+                output = outputs.enter_context(part.with_suffix(".csv.tmp").open("wb"))
+                output.write(header)
+                size = len(header)
+            output.write(data)
+            size += len(data)
+    for part in parts:
+        part.with_suffix(".csv.tmp").replace(part)
+    path.unlink()
+    return parts
 
 
 def write_daily_revenue(root):
@@ -510,13 +546,24 @@ class Pipeline:
                   "oracle_round_id", "eth_usd_answer", "referrer"]
         event_count, total_revenue, total_correction = 0, 0, 0
         event_tmp = self.root / "events.csv.gz.tmp"
-        with event_tmp.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", filename="", mtime=0, compresslevel=1) as zipped, io.TextIOWrapper(zipped, encoding="utf-8", newline="") as f:
+        simple_root = self.root / "name_events"
+        simple_root.mkdir(exist_ok=True)
+        simple_writers = {}
+        with event_tmp.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", filename="", mtime=0, compresslevel=1) as zipped, io.TextIOWrapper(zipped, encoding="utf-8", newline="") as f, ExitStack() as simple_files:
             writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
             writer.writeheader()
             for (payload,) in self.db.execute("SELECT payload FROM events ORDER BY block_number,log_index"):
                 event = load_event(payload)
                 event.setdefault("name_bytes_hex", "0x" + event["name"].encode("utf-8").hex())
                 writer.writerow(event)
+                year = event["date"][:4]
+                if year not in simple_writers:
+                    stream = simple_files.enter_context((simple_root / f"{year}.csv.tmp").open("w", encoding="utf-8", newline=""))
+                    simple_writers[year] = csv.DictWriter(stream, fieldnames=["name", "event", "price_eth", "date"])
+                    simple_writers[year].writeheader()
+                simple_writers[year].writerow(dict(name=event["name"] + ".eth",
+                                            event={"registration": "register", "renewal": "renew"}[event["kind"]],
+                                            price_eth=eth(event["revenue_wei"]), date=event["date"]))
                 event_count += 1
                 methods[event["accounting_method"]] += 1
                 total_revenue += event["revenue_wei"]
@@ -535,6 +582,13 @@ class Pipeline:
                         group["reported_cost_wei"] += event["reported_cost_wei"]
                         group["correction_wei"] += event["correction_wei"]
         event_tmp.replace(self.root / "events.csv.gz")
+        simple_paths = []
+        for year in sorted(simple_writers):
+            (simple_root / f"{year}.csv.tmp").replace(simple_root / f"{year}.csv")
+            simple_paths.extend(split_large_csv(simple_root / f"{year}.csv"))
+        for stale in simple_root.glob("*.csv"):
+            if stale not in simple_paths:
+                stale.unlink()
         # Upgrade an earlier uncompressed export only after the gzip is durable.
         (self.root / "events.csv").unlink(missing_ok=True)
         first_day = datetime.fromtimestamp(info["start_timestamp"], timezone.utc).date()
@@ -584,7 +638,8 @@ class Pipeline:
                         legacy_split="unavailable: reported separately as registration_combined_legacy",
                         scope="Ethereum .eth permanent-registrar controller fees; excludes gas, secondary sales, 2017 auctions, subnames")
         manifest["files_sha256"] = {name: file_sha256(self.root / name)
-                                    for name in ["events.csv.gz", "daily_revenue.csv", "daily_revenue_by_source.csv", "daily_activity.csv"]}
+                                    for name in ["events.csv.gz", "daily_revenue.csv", "daily_revenue_by_source.csv", "daily_activity.csv"]
+                                    + [str(path.relative_to(self.root)) for path in simple_paths]}
         if (self.root / "daily_eth_usd.csv").exists():
             previous = json.loads((self.root / "manifest.json").read_text())
             if previous["end_block_hash"] != info["end_block_hash"]:
