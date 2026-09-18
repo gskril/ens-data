@@ -6,26 +6,27 @@ The included backfill is complete for blocks **7,000,000–25,991,586**, ending 
 
 The renewal-event bug would otherwise add **381,825.548935822465311040 ETH** of refunded/repeatedly counted value to revenue. See the independently traced bulk-renewal example in the [accounting research](research/contract-accounting.md). The snapshot passed 30 tests at publication, and [final validation](research/final-validation.json) reconciles block coverage, CSV checksums, exact totals, event counts, durations and daily USD conversion.
 
-## Download the full snapshot
+## Download the snapshot evidence
 
-The public [snapshot-2026-09-16 release](https://github.com/gskril/ens-data/releases/tag/snapshot-2026-09-16) holds the full `data/` snapshot, including the compressed event CSV, raw Cryo evidence and SQLite checkpoint. Git contains the daily CSVs, yearly name event CSVs (with numbered parts for larger years), manifests, source code, tests and research. GitHub blocks Git files over 100 MiB and limits individual release assets to less than 2 GiB, so the archive is split into 1 GiB parts. Credentials, runtime environments, logs and temporary SQLite sidecars are excluded.
+Published data has one home: the repository contains the final daily and yearly CSV outputs and `data/manifest.json`; the [snapshot-2026-09-16 release](https://github.com/gskril/ens-data/releases/tag/snapshot-2026-09-16) contains only `data/raw/`, the resumable `data/journal.sqlite` checkpoint, and the detailed `data/events.csv.gz` audit. Release checksums and archive validation accompany that evidence. Derived outputs are not duplicated as release attachments or inside its archive.
 
-Requirements: Python 3.12 or newer, [uv](https://docs.astral.sh/uv/), Git, and the GitHub CLI (`gh`). Allow at least 20 GB of free disk for archives, restored data, dependencies and temporary exports. The repository and release are public; `gh release download` may require `gh auth login` for the CLI itself. No project-specific access is required.
+For analysis, clone the repository or download its CSVs directly; no release download is needed. To reproduce or extend the pipeline, restore the matching evidence as well. Requirements: Python 3.12 or newer, [uv](https://docs.astral.sh/uv/), Git, and the GitHub CLI (`gh`). Allow at least 20 GB of free disk for archives, restored data, dependencies and temporary exports.
 
-Clone the code, install the locked dependencies, then restore the consolidated snapshot:
+The September 16 evidence matches repository revision `72f639c`, which includes all final CSVs and their checksums. Pin that revision for a reproducible restore:
 
 ```sh
 git clone https://github.com/gskril/ens-data.git
 cd ens-data
+git checkout 72f639c
 uv sync --locked
 mkdir -p releases
 gh release download snapshot-2026-09-16 --repo gskril/ens-data \
-  --dir releases --pattern 'snapshot-2026-09-16-clean.tar.gz.part-*' --pattern SHA256SUMS
+  --dir releases --pattern 'snapshot-2026-09-16-evidence.tar.gz.part-*' --pattern SHA256SUMS
 (cd releases && sha256sum -c SHA256SUMS)
-cat releases/snapshot-2026-09-16-clean.tar.gz.part-* | tar -xzf -
+cat releases/snapshot-2026-09-16-evidence.tar.gz.part-* | tar -xzf -
 ```
 
-Extraction restores the frozen snapshot and overwrites matching `data/` files; use a fresh clone to preserve any newer local runs. The consolidated archive includes the current daily revenue layout, Chainlink daily prices and raw evidence, event audit, journal and manifest. Obsolete validation runs are excluded from the archive itself; no update archive or extraction exclusions are needed. `SHA256SUMS` verifies the archive parts, `ARCHIVE_VALIDATION.json` records packaging checks, and the restored `data/manifest.json` contains checksums for each final CSV. The release also provides `daily_revenue.csv` and `daily_eth_usd.csv` as standalone downloads. See GitHub's [large-file guidance](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github) and [release limits](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
+Extraction restores only raw evidence, the event audit and the journal. It does not overwrite repository CSVs or the manifest. Restore into a fresh clone to avoid overwriting an existing local journal or raw data. `SHA256SUMS` verifies the archive parts; `ARCHIVE_VALIDATION.json` records the matching repository commit, snapshot bounds, SQLite consistency, and individual archived file hashes. The repository manifest verifies the final CSVs and event audit together. Archives are split into 1 GiB parts.
 
 ## Reproduce the downloaded snapshot
 
@@ -115,7 +116,7 @@ The controller inventory is explicit in `ens_data/contracts.py`. Updates cover t
 
 Update validation: all 39 tests pass, including interrupted resumes, short checkpoint boundaries, anchor/coverage rejection and incremental price caches. A mainnet check acquired blocks 25,991,400–25,991,586, appended through 25,992,586, and matched an independent extraction of the whole interval: 66 events, 0.689861679719419163 ETH, and identical revenue, source, activity and price CSVs. Offline export reproduced all five CSV hashes. These small exploratory exports are not part of the published snapshot; the commands can reproduce the check under `runs/`.
 
-To publish a newer snapshot, push the daily and yearly name event CSVs, manifest, code and documentation, and create a **new dated GitHub release** with `data/events.csv.gz`, `data/journal.sqlite` and all of `data/raw/`. Stop the writer and close/checkpoint SQLite before packaging; do not omit a live WAL file from a database copy. Split archives below GitHub's per-asset limit, include SHA-256 checksums, and verify a fresh restore. Exclude `.env`, `.venv`, exploratory runs and temporary files. Keep the September 16 release and its research validation report as historical evidence; update README snapshot statistics and produce validation for the new release.
+To publish a newer snapshot, commit and push the daily and yearly name event CSVs, manifest, code and documentation. Stop the writer and close/checkpoint SQLite, then run `python scripts/package_release.py releases/SNAPSHOT_DATE` from the repository root. The packager includes only `data/events.csv.gz`, `data/journal.sqlite` and `data/raw/`, rejects overlap with Git-tracked data, creates 1 GiB parts, and verifies every archived file against its source hash. Upload the generated parts, `SHA256SUMS`, and `ARCHIVE_VALIDATION.json` to a **new dated GitHub release**. Record the matching repository commit in its restore instructions; do not attach final CSVs or bundle them in the archive. Keep prior snapshots and research validation as historical evidence, and validate each new snapshot before publishing.
 
 ## Files
 
