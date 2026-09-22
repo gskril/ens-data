@@ -1,0 +1,48 @@
+{
+  "status": "passed",
+  "run_type": "update",
+  "run_at": "2026-09-22T16:01:31Z",
+  "event_count": 5280513,
+  "total_revenue_eth": "64990.288644997801562768",
+  "renewal_overstatement_eth": "381825.582614214173069088",
+  "daily_rows": 2821,
+  "utc_days": 2821,
+  "start_block": 7000000,
+  "end_block": 26033971,
+  "end_block_hash": "0x68f5189c216b49966fa234ffdf4829684be3c748ed18025d63fd1ee14906c587",
+  "previous_end_block": 25991586,
+  "previous_end_block_hash": "0xf12479f48a06ff0f55bbc1fff66b038aba7ccf7269e6a96fa8b3c1767a80347e",
+  "added_events": 6076,
+  "added_revenue_eth": "35.392045799079295439",
+  "source_totals_eth": {
+    "registration_base": "4124.613103601552021830",
+    "registration_combined_legacy": "40398.099556306524281909",
+    "registration_premium": "2122.716728912066968536",
+    "renewal": "18344.859256177658290493"
+  },
+  "tests_passed": 41,
+  "checks": [
+    "contiguous complete block and expiry coverage (191 half-open ranges, 7,000,000-26,033,971, no gaps)",
+    "all export SHA-256 hashes (14 files against data/manifest.json)",
+    "manifest status complete, last_error null, end block/hash match RPC finalized block",
+    "historical complete-day daily_revenue.csv rows byte-identical to prior published snapshot (0 changed)",
+    "previous partial day (2026-09-16) recomputed to a higher, now-complete total instead of remaining at the old partial capture",
+    "new final day (2026-09-22) correctly flagged partial_day in daily_revenue_by_source.csv",
+    "exact daily revenue and refund correction sums",
+    "daily unique event and duration counts",
+    "daily USD independently reconciled with Decimal arithmetic; source column sum equals total_revenue_eth",
+    "historical closing-price state check in all seven Chainlink phases",
+    "SQLite journal checkpointed (WAL truncated, no leftover -wal/-shm) before packaging"
+  ],
+  "source_detail_rows": 11284,
+  "daily_revenue_layout": "wide; total_revenue_usd last",
+  "usd_conversion": {
+    "priced_days": 2360,
+    "missing_price_revenue_days": 333,
+    "missing_price_revenue_eth": "2821.099357505964491032",
+    "first_priced_day": "2020-01-15",
+    "total_usd_for_priced_days": "128965156.83",
+    "last_day_price_status": "snapshot_cutoff",
+    "note": "333 revenue-bearing dates lacking a usable price is unchanged from the prior published snapshot; all newly added dates (2026-09-17 through 2026-09-22) priced successfully. These are the documented pre-2020-04-07 Chainlink feed gaps, not new pricing failures."
+  }
+}
