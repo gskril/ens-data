@@ -1,10 +1,10 @@
 {
   "chain_id": 1,
   "start_block": 7000000,
-  "end_block": 25991586,
-  "end_block_hash": "0xf12479f48a06ff0f55bbc1fff66b038aba7ccf7269e6a96fa8b3c1767a80347e",
+  "end_block": 26033971,
+  "end_block_hash": "0x68f5189c216b49966fa234ffdf4829684be3c748ed18025d63fd1ee14906c587",
   "start_timestamp": 1546466952,
-  "end_timestamp": 1789580375,
+  "end_timestamp": 1790091479,
   "created_at": "2026-09-16T17:56:18.745440+00:00",
   "cryo_version": "0.3.2",
   "controllers": [
@@ -46,6 +46,15 @@
   ],
   "chunk_size": 100000,
   "timestamp_source": "Alchemy transfer metadata with Cryo block fallback",
+  "extensions": [
+    {
+      "previous_end_block": 25991586,
+      "previous_end_block_hash": "0xf12479f48a06ff0f55bbc1fff66b038aba7ccf7269e6a96fa8b3c1767a80347e",
+      "end_block": 26033971,
+      "end_block_hash": "0x68f5189c216b49966fa234ffdf4829684be3c748ed18025d63fd1ee14906c587",
+      "requested_at": "2026-09-22T15:56:37.452992+00:00"
+    }
+  ],
   "status": "complete",
   "last_error": null,
   "completed_block_ranges_half_open": [
@@ -808,28 +817,31 @@
     [
       25900000,
       25991587
+    ],
+    [
+      25991587,
+      26033972
     ]
   ],
-  "event_count": 5274437,
-  "total_revenue_wei": "64954896599198722267329",
-  "total_revenue_eth": "64954.896599198722267329",
-  "renewal_overstatement_wei": "381825548935822465311040",
+  "event_count": 5280513,
+  "total_revenue_wei": "64990288644997801562768",
+  "total_revenue_eth": "64990.288644997801562768",
+  "renewal_overstatement_wei": "381825582614214173069088",
   "accounting_methods": {
-    "controller_event": 3751072,
-    "trace_oracle_and_refund": 23914,
-    "controller_event_and_expiry_history": 641601,
-    "oracle_rounds_and_expiry_history": 857850
+    "controller_event": 3752278,
+    "trace_oracle_and_refund": 23925,
+    "controller_event_and_expiry_history": 643102,
+    "oracle_rounds_and_expiry_history": 861208
   },
   "daily_revenue_layout": "one row per UTC day; source columns in ETH; total_revenue_usd last",
   "journal_payload_encoding": "JSON or Z1-prefixed zlib JSON",
   "legacy_split": "unavailable: reported separately as registration_combined_legacy",
   "scope": "Ethereum .eth permanent-registrar controller fees; excludes gas, secondary sales, 2017 auctions, subnames",
   "files_sha256": {
-    "events.csv.gz": "1572bb506225a3aedf2508d40c33d31ff2c605fcabb0b0fa591085eed591a94e",
-    "daily_revenue.csv": "f4177d8d3a16e6ab8acc49eab78b430067313caa0aba80ba4d1c32fe23a5aef0",
-    "daily_revenue_by_source.csv": "16bfe9cb1a245c40a576b5ce617b3398ccbf1d2dbdc6776de2715b5cca54a3ec",
-    "daily_activity.csv": "896f52af204f1a75d23aedea0cda6ebc607efab7f5a9b98cad683636b99b98f7",
-    "daily_eth_usd.csv": "fb40265c3045d16800b2089c2a6d0701779559a3db9f0b2e107c49d804a67b9e",
+    "events.csv.gz": "0eafb65e16985997849ee49702849aa54f82f5dede5209e0a0f7a5219f90271e",
+    "daily_revenue.csv": "7bbaa8af22fd839a820b0bd119e71de563c65cb85197c01bed9abc65acf72f8a",
+    "daily_revenue_by_source.csv": "cd5dcbb8dc8688caabd753231d82bc269b1c264f3dac0639f95fe70e74f78f13",
+    "daily_activity.csv": "028a38b2254a4932b4bf29f0c3e5b7f97a2e0d2084fdf7de4378969b810fb29a",
     "name_events/2019.csv": "f35c59ffc234ab45e965eb57ab85629160abbf10f4c7cbf24c028ba2e9905f33",
     "name_events/2020.csv": "4b4495822da313558d6fab7589b5ebb59ac8bc61b48756fc50ccd5f5794e0fab",
     "name_events/2021.csv": "b00ff3889d4d49543a887f074d8e901e51801d6b2e71fc363e01d6cef1116b8f",
@@ -838,7 +850,8 @@
     "name_events/2023.csv": "fff73db2d887fa779969b8992baade3d786711c331ec7408345c0e97126e515f",
     "name_events/2024.csv": "0d1aaf492c7c5eef6026d0eee6712f4ef7cf6f1c9b7a4190b35303197573e372",
     "name_events/2025.csv": "4cc63a344888091c6b8bdb37c98fd5261de77740c2a14c8f716f06bea3b9cb52",
-    "name_events/2026.csv": "fccde8e212178704d32a91fc5274abe0f0882e57065eef1be2e33987aff0ec8f"
+    "name_events/2026.csv": "73eb7005f79303f6154cc9b9bd8ada7b6f51d79f5edd4b9759fba505d83039d7",
+    "daily_eth_usd.csv": "492960bef6254acc04fb4f1f2af2ec0039037dccf43f637218101d5530380650"
   },
   "usd_conversion": {
     "source": "Chainlink ETH/USD",
