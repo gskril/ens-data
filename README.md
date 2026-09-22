@@ -2,28 +2,28 @@
 
 Cryo extracts Ethereum mainnet ENS registration/renewal logs and historical transaction traces. The pipeline writes exact, cash-basis daily revenue in ETH, purchased durations, and event-level evidence. No wallet or signing key is used.
 
-The included backfill is complete for blocks **7,000,000–25,991,586**, ending September 16, 2026. It contains **5,274,437 events** and **64,954.896599198722267329 ETH** of corrected revenue. Start with [data/daily_revenue.csv](data/daily_revenue.csv): **one row per UTC day, one ETH column per revenue type, total ETH, and `total_revenue_usd` at the far right**. USD uses the day's Chainlink closing price where available; historical gaps are described below. Purchased durations and unique daily counts are in [data/daily_activity.csv](data/daily_activity.csv). Boundary UTC days are flagged in the detailed source table even though the requested block range is complete.
+The included backfill is complete for blocks **7,000,000–26,034,446**, ending September 22, 2026 at 17:13:59 UTC. It contains **5,280,551 events** and **64,990.401113873541302993 ETH** of corrected revenue. Start with [data/daily_revenue.csv](data/daily_revenue.csv): **one row per UTC day, one ETH column per revenue type, total ETH, and `total_revenue_usd` at the far right**. USD uses the day's Chainlink closing price where available; historical gaps are described below. Purchased durations and unique daily counts are in [data/daily_activity.csv](data/daily_activity.csv). Boundary UTC days are flagged in the detailed source table even though the requested block range is complete.
 
-The renewal-event bug would otherwise add **381,825.548935822465311040 ETH** of refunded/repeatedly counted value to revenue. See the independently traced bulk-renewal example in the [accounting research](research/contract-accounting.md). The snapshot passed 30 tests at publication, and [final validation](research/final-validation.json) reconciles block coverage, CSV checksums, exact totals, event counts, durations and daily USD conversion.
+The renewal-event bug would otherwise add **381,825.582650650660072397 ETH** of refunded/repeatedly counted value to revenue. See the independently traced bulk-renewal example in the [accounting research](research/contract-accounting.md). The refreshed snapshot passes 41 pipeline tests; [September 22 validation](research/validation-2026-09-22.json) reconciles block coverage, CSV checksums, exact totals, event counts, durations, yearly name exports and daily USD conversion. The dashboard build and test also pass. [Original publication validation](research/final-validation.json) remains a record of the September 16 snapshot.
 
 ## Download the snapshot evidence
 
-Published data has one home: the repository contains the final daily and yearly CSV outputs and `data/manifest.json`; the [snapshot-2026-09-16 release](https://github.com/gskril/ens-data/releases/tag/snapshot-2026-09-16) contains only `data/raw/`, the resumable `data/journal.sqlite` checkpoint, and the detailed `data/events.csv.gz` audit. Release checksums and archive validation accompany that evidence. Derived outputs are not duplicated as release attachments or inside its archive.
+Published data has one home: the repository contains the final daily and yearly CSV outputs and `data/manifest.json`; the [snapshot-2026-09-22 release](https://github.com/gskril/ens-data/releases/tag/snapshot-2026-09-22) contains only `data/raw/`, the resumable `data/journal.sqlite` checkpoint, and the detailed `data/events.csv.gz` audit. Release checksums and archive validation accompany that evidence. Derived outputs are not duplicated as release attachments or inside its archive.
 
 For analysis, clone the repository or download its CSVs directly; no release download is needed. To reproduce or extend the pipeline, restore the matching evidence as well. Requirements: Python 3.12 or newer, [uv](https://docs.astral.sh/uv/), Git, and the GitHub CLI (`gh`). Allow at least 20 GB of free disk for archives, restored data, dependencies and temporary exports.
 
-The September 16 evidence matches repository revision `72f639c`, which includes all final CSVs and their checksums. Pin that revision for a reproducible restore:
+The September 22 evidence matches the `snapshot-2026-09-22` repository tag, which includes all final CSVs and their checksums. Pin that tag for a reproducible restore. The release notes and `ARCHIVE_VALIDATION.json` record its exact commit. The [September 16 release](https://github.com/gskril/ens-data/releases/tag/snapshot-2026-09-16) remains available as historical evidence at revision `72f639c`:
 
 ```sh
 git clone https://github.com/gskril/ens-data.git
 cd ens-data
-git checkout 72f639c
+git checkout snapshot-2026-09-22
 uv sync --locked
 mkdir -p releases
-gh release download snapshot-2026-09-16 --repo gskril/ens-data \
-  --dir releases --pattern 'snapshot-2026-09-16-evidence.tar.gz.part-*' --pattern SHA256SUMS
+gh release download snapshot-2026-09-22 --repo gskril/ens-data \
+  --dir releases --pattern 'snapshot-2026-09-22-evidence.tar.gz.part-*' --pattern SHA256SUMS --pattern ARCHIVE_VALIDATION.json
 (cd releases && sha256sum -c SHA256SUMS)
-cat releases/snapshot-2026-09-16-evidence.tar.gz.part-* | tar -xzf -
+cat releases/snapshot-2026-09-22-evidence.tar.gz.part-* | tar -xzf -
 ```
 
 Extraction restores only raw evidence, the event audit and the journal. It does not overwrite repository CSVs or the manifest. Restore into a fresh clone to avoid overwriting an existing local journal or raw data. `SHA256SUMS` verifies the archive parts; `ARCHIVE_VALIDATION.json` records the matching repository commit, snapshot bounds, SQLite consistency, and individual archived file hashes. The repository manifest verifies the final CSVs and event audit together. Archives are split into 1 GiB parts.
@@ -47,7 +47,7 @@ PY
 uv run pytest -q
 ```
 
-`uv run ens-data export --output data` regenerates all revenue/activity CSVs and the event audit from the restored SQLite journal, using the saved daily prices, with no RPC calls. This scans all 5.27 million events and rewrites the large audit file, so allow several minutes. Save the original manifest before export if you want to compare regenerated hashes with the published values. The research validation report remains a record of the published September 16 snapshot.
+`uv run ens-data export --output data` regenerates all revenue/activity CSVs and the event audit from the restored SQLite journal, using the saved daily prices, with no RPC calls. This scans all 5.28 million events and rewrites the large audit file, so allow several minutes. Save the original manifest before export if you want to compare regenerated hashes with the published values. The dated research validation reports retain the results for each published snapshot.
 
 To reproduce acquisition from the blockchain itself, use `run` with explicit bounds and a separate output directory, as shown below. An Ethereum mainnet RPC must support historical logs, historical `eth_call`, block headers and `trace_transaction`. The Alchemy account tested for the snapshot supported these methods; a logs-only or non-archive endpoint is insufficient. Bring your own RPC URL: credentials are deliberately excluded from GitHub.
 
@@ -74,7 +74,7 @@ The supplied public RPC's mainnet route is `https://evm.stupidtech.net/v1/1`; us
 To independently recreate the exact published block range without its journal/cache:
 
 ```sh
-uv run ens-data run --start-block 7000000 --end-block 25991586 \
+uv run ens-data run --start-block 7000000 --end-block 26034446 \
   --output runs/reproduction --chunk-size 100000 --log-request-size 10000 \
   --requests-per-second 20 --concurrency 8
 uv run ens-data prices --output runs/reproduction --log-request-size 10000 \
@@ -149,7 +149,7 @@ The detailed source table preserves canonical `revenue_wei` amounts and `revenue
 
 ## Daily USD valuation
 
-`total_revenue_usd = total_revenue_eth × closing ETH/USD price`, rounded to cents (half up) using integer arithmetic. The closing price is the last Chainlink update available before the next UTC midnight. For the unfinished final day, the cutoff is the snapshot timestamp (**2026-09-16 17:39:35 UTC** in the included release). This values the day's ETH receipts at one daily price; it does not sum transaction-time USD values.
+`total_revenue_usd = total_revenue_eth × closing ETH/USD price`, rounded to cents (half up) using integer arithmetic. The closing price is the last Chainlink update available before the next UTC midnight. For the unfinished final day, the cutoff is the snapshot timestamp (**2026-09-22 17:13:59 UTC** in the current dataset). This values the day's ETH receipts at one daily price; it does not sum transaction-time USD values.
 
 `ens-data prices` follows the historical [Chainlink ETH/USD feed](https://data.chain.link/feeds/ethereum/mainnet/eth-usd) across all seven aggregator phases, discovers exact activation blocks, and seeds each new phase with its existing answer. The legacy phase-two adapter reads the phase-one aggregator, so its updates come from that underlying contract. Cryo logs and historical state checks are cached under `data/raw/daily_price_logs/` and `data/raw/daily_prices/`. A closing price in each phase is independently checked against historical contract state. See [Chainlink's historical-data documentation](https://docs.chain.link/data-feeds/historical-data).
 

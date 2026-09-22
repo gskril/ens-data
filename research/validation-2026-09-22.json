@@ -1,0 +1,62 @@
+{
+  "status": "passed",
+  "start_block": 7000000,
+  "end_block": 26034446,
+  "end_block_hash": "0x44baf44e5a7e7b593d7da9ec7de2b881a0a95a5addfefadcee7cdacddf644f72",
+  "end_timestamp": 1790097239,
+  "event_count": 5280551,
+  "total_revenue_eth": "64990.401113873541302993",
+  "renewal_overstatement_eth": "381825.582650650660072397",
+  "daily_rows": 2821,
+  "total_usd_for_priced_days": "128965483.74",
+  "missing_price_revenue_days": 333,
+  "tests_passed": 41,
+  "files_sha256": {
+    "events.csv.gz": "8e870386bd60537b6cbf357e157b76d14a19d1957dd183e09c0d73a66951b01a",
+    "daily_revenue.csv": "0abffe3af8fcb1a4c3f59b9ba81c286b1683d83f66183d9fe959e09020d94a48",
+    "daily_revenue_by_source.csv": "d5bddd670a358028ccd72b381baf42d6e46dfe0f7262e0d82014172f24cb0790",
+    "daily_activity.csv": "91da426b3c2edda747f7c4c0f8882af375f3d76b2ad24f36fb6e55e2b06fd8b8",
+    "name_events/2019.csv": "f35c59ffc234ab45e965eb57ab85629160abbf10f4c7cbf24c028ba2e9905f33",
+    "name_events/2020.csv": "4b4495822da313558d6fab7589b5ebb59ac8bc61b48756fc50ccd5f5794e0fab",
+    "name_events/2021.csv": "b00ff3889d4d49543a887f074d8e901e51801d6b2e71fc363e01d6cef1116b8f",
+    "name_events/2022-part1.csv": "7f659c13cd072941a51780f7b6c17c825d7235ed3fbccd7e1e5663cee2464cc3",
+    "name_events/2022-part2.csv": "aa502fa070c6d87b962eb317ac5a977e7f590dce55226c8b10fac374da78a884",
+    "name_events/2023.csv": "fff73db2d887fa779969b8992baade3d786711c331ec7408345c0e97126e515f",
+    "name_events/2024.csv": "0d1aaf492c7c5eef6026d0eee6712f4ef7cf6f1c9b7a4190b35303197573e372",
+    "name_events/2025.csv": "4cc63a344888091c6b8bdb37c98fd5261de77740c2a14c8f716f06bea3b9cb52",
+    "name_events/2026.csv": "1b3ae3168dc08980b1305347a3d8ddae67938d5d9d47de4c5198720c4b245465",
+    "daily_eth_usd.csv": "9f02462bfeee85bc4807be39895fef1ccabb58bee311fb678aa8f41698094a49"
+  },
+  "checks": [
+    "all export SHA-256 hashes",
+    "journal event count and snapshot anchor",
+    "contiguous matching revenue and expiry coverage",
+    "zero-filled UTC dates and boundary coverage",
+    "exact daily and source revenue and refund sums",
+    "activity counts and durations reconcile with sources",
+    "daily USD independently reconciled with Decimal arithmetic",
+    "yearly name export counts and exact revenue"
+  ],
+  "archive": {
+    "status": "passed",
+    "archive_file_count": 2788,
+    "archive_bytes": 4250332804,
+    "checks": [
+      "SQLite structural integrity and event count",
+      "every archived file SHA-256 matches source",
+      "gzip integrity",
+      "no Git-tracked data files in archive",
+      "only raw evidence, journal, and event audit"
+    ],
+    "directory": "releases/2026-09-22",
+    "parts_sha256": {
+      "snapshot-2026-09-22-evidence.tar.gz.part-000": "c215e11cdabc60aa794ec622e0edbdb8e1f24de6967b88a2d777ff561b671792",
+      "snapshot-2026-09-22-evidence.tar.gz.part-001": "56a62ee3f1e2cb2c74b900791326281dd72696333f163aa6d684c6734d96b01f",
+      "snapshot-2026-09-22-evidence.tar.gz.part-002": "82ae188d3534d54dcdc44e9ffe109d25d52bfad3559221924c376d57594abc62",
+      "snapshot-2026-09-22-evidence.tar.gz.part-003": "0ba0b9bab7c00997a559c66352c853aaaa9fe261e9e12a87820ada44272770d7"
+    },
+    "packaging_code_commit": "f264c8d90a56225ecc796f4914fbd1afa9da3ef4",
+    "snapshot_git_ref": "refs/tags/snapshot-2026-09-22",
+    "release_url": "https://github.com/gskril/ens-data/releases/tag/snapshot-2026-09-22"
+  }
+}
