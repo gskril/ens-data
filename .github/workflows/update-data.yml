@@ -1,0 +1,202 @@
+name: Update ENS data
+
+on:
+  schedule:
+    # Ethereum finality and UTC pricing are both comfortably settled by this time.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: update-ens-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ETH_RPC_URL: ${{ secrets.ETH_RPC_URL }}
+      UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Require the RPC secret
+        run: test -n "$ETH_RPC_URL"
+
+      - name: Restore the latest published checkpoint
+        id: restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=$(gh release view --json tagName --jq .tagName)
+          restore_dir="$RUNNER_TEMP/restore-$tag"
+          mkdir -p "$restore_dir"
+
+          gh release download "$tag" \
+            --dir "$restore_dir" \
+            --pattern "$tag-evidence.tar.gz.part-*" \
+            --pattern SHA256SUMS \
+            --pattern ARCHIVE_VALIDATION.json
+
+          (
+            cd "$restore_dir"
+            sha256sum -c SHA256SUMS
+          )
+          cat "$restore_dir"/"$tag"-evidence.tar.gz.part-* | tar -xzf -
+
+          TAG="$tag" VALIDATION="$restore_dir/ARCHIVE_VALIDATION.json" python - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          tag = os.environ["TAG"]
+          validation = json.load(open(os.environ["VALIDATION"]))
+          tagged_manifest = json.loads(
+              subprocess.check_output(
+                  ["git", "show", f"{tag}:data/manifest.json"], text=True
+              )
+          )
+          tagged_commit = subprocess.check_output(
+              ["git", "rev-list", "-n", "1", tag], text=True
+          ).strip()
+          assert validation["status"] == "passed"
+          assert validation["source_git_commit"] == tagged_commit
+          for key in ("start_block", "end_block", "end_block_hash", "event_count"):
+              assert validation[key] == tagged_manifest[key], key
+          print(f"Restored validated checkpoint from {tag} ({tagged_commit[:12]})")
+          PY
+          rm -rf "$restore_dir"
+
+          test -s data/journal.sqlite
+          test -s data/events.csv.gz
+          test -d data/raw
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          df -h .
+          du -sh data
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          python-version: '3.12'
+          enable-cache: false
+
+      - name: Install dependencies and packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y pigz
+          sudo rm -rf /var/lib/apt/lists/*
+          uv sync --locked
+          uv cache clean
+
+      - name: Append finalized blocks and refresh prices
+        run: |
+          uv run ens-data update --output data \
+            --log-request-size 10000 \
+            --requests-per-second 20 \
+            --concurrency 4
+
+      - name: Verify the completed snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run python - <<'PY'
+          import json
+          from pathlib import Path
+
+          from ens_data.pipeline import file_sha256
+
+          root = Path("data")
+          manifest = json.loads((root / "manifest.json").read_text())
+          assert manifest["status"] == "complete", manifest["status"]
+          assert manifest["last_error"] is None, manifest["last_error"]
+          for name, expected in manifest["files_sha256"].items():
+              actual = file_sha256(root / name)
+              assert actual == expected, (name, actual, expected)
+          print(
+              f"Verified {manifest['event_count']:,} events through "
+              f"block {manifest['end_block']:,}"
+          )
+          PY
+          uv run pytest -q
+          df -h .
+          du -sh data
+
+      - name: Commit the refreshed tracked data
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A -- \
+            data/daily_activity.csv \
+            data/daily_eth_usd.csv \
+            data/daily_revenue.csv \
+            data/daily_revenue_by_source.csv \
+            data/manifest.json \
+            data/name_events
+
+          if git diff --cached --quiet; then
+            echo "The finalized block did not advance; nothing to publish."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          snapshot_date=$(uv run python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+
+          manifest = json.load(open("data/manifest.json"))
+          print(datetime.fromtimestamp(manifest["end_timestamp"], timezone.utc).date())
+          PY
+          )
+          git commit -m "Refresh ENS snapshot through $snapshot_date"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "date=$snapshot_date" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Package the release evidence
+        if: steps.commit.outputs.changed == 'true'
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="snapshot-${{ steps.commit.outputs.date }}"
+          release_dir="$RUNNER_TEMP/$tag"
+          # Packaging uses only the standard library; reclaim dependency space first.
+          rm -rf "$GITHUB_WORKSPACE/.venv" "$UV_CACHE_DIR"
+          python scripts/package_release.py "$release_dir"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "directory=$release_dir" >> "$GITHUB_OUTPUT"
+          df -h .
+
+      - name: Publish the immutable evidence release
+        if: steps.commit.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.package.outputs.tag }}"
+          release_dir="${{ steps.package.outputs.directory }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; refusing to overwrite it." >&2
+            exit 1
+          fi
+
+          git push origin HEAD:main
+          gh release create "$tag" "$release_dir"/* \
+            --target "${{ steps.commit.outputs.sha }}" \
+            --title "ENS data snapshot ${{ steps.commit.outputs.date }}" \
+            --notes "Automated evidence snapshot through ${{ steps.commit.outputs.date }}. Restore instructions and checksums are included in the repository and release assets."
+
+      - name: Deploy the refreshed dashboard
+        if: steps.commit.outputs.changed == 'true'
+        run: gh workflow run dashboard-pages.yml --ref main
