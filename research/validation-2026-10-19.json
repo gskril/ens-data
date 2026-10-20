@@ -50,13 +50,18 @@
     ],
     "directory": "releases/snapshot-2026-10-19",
     "parts_sha256": {
-      "snapshot-2026-10-19-evidence.tar.gz.part-000": "2acdce50f78b533828ce7799420fac38f1f518b5b2f6724ed1b78c37ee71f0c2",
-      "snapshot-2026-10-19-evidence.tar.gz.part-001": "e4c55fe625c6cbd627eaf18c6bbb70f4bee06e89fce13f96d03a5d0981b380fe",
-      "snapshot-2026-10-19-evidence.tar.gz.part-002": "01e61fdc0c8143b839fcde8538b12ab896a028a5200d071b13d1f18fe14cc4ef",
-      "snapshot-2026-10-19-evidence.tar.gz.part-003": "effbee0e61e1151887735e0d6ebb607715d71cdd254f8be99198b474f4b1d9e8"
+      "snapshot-2026-10-19-evidence.tar.gz.part-000": "3efffd7b43dc62ff502c8364da534a86583f9aec4d2c05e30b2a4befdb437d30",
+      "snapshot-2026-10-19-evidence.tar.gz.part-001": "4c84ccf97f2dcc7b10c7fa16f964b38f0080ce831d011e3b506f90461e3e0cf0",
+      "snapshot-2026-10-19-evidence.tar.gz.part-002": "43a3867c61fa8a799776c8a7f08e23c22ab079171439986a4e571cf349d81085",
+      "snapshot-2026-10-19-evidence.tar.gz.part-003": "e9c4f8ff1b2050313611b43c3665d1e31ae933693ac42658e62471d65d8d0188",
+      "snapshot-2026-10-19-evidence.tar.gz.part-004": "570b9eced10862ea0ad24dece439d3bd8485611cc81972a575923b77afcca07f",
+      "snapshot-2026-10-19-evidence.tar.gz.part-005": "8e231043837880363a9bf6394cff7908397fa60e88f053c5d1a38864a073f576"
     },
     "packaging_code_commit": "0c33a01e1bd470910609aad326956f2cc69814d3",
     "snapshot_git_ref": "refs/tags/snapshot-2026-10-19",
-    "release_url": "https://github.com/gskril/ens-data/releases/tag/snapshot-2026-10-19"
+    "release_url": "https://github.com/gskril/ens-data/releases/tag/snapshot-2026-10-19",
+    "part_bytes": 786432000,
+    "archive_sha256": "a9278303604fc74d0869c236fbd2c239aa96026d3ba7a325a43c7829fb726054",
+    "note": "Re-split from the original 1 GiB parts into 750 MiB parts; the concatenated archive is byte-identical (same archive_sha256 and archive_bytes)."
   }
 }

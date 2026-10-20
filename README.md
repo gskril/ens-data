@@ -26,7 +26,7 @@ gh release download snapshot-2026-10-19 --repo gskril/ens-data \
 cat releases/snapshot-2026-10-19-evidence.tar.gz.part-* | tar -xzf -
 ```
 
-Extraction restores only raw evidence, the event audit and the journal. It does not overwrite repository CSVs or the manifest. Restore into a fresh clone to avoid overwriting an existing local journal or raw data. `SHA256SUMS` verifies the archive parts; `ARCHIVE_VALIDATION.json` records the matching repository commit, snapshot bounds, SQLite consistency, and individual archived file hashes. The repository manifest verifies the final CSVs and event audit together. Archives are split into 1 GiB parts.
+Extraction restores only raw evidence, the event audit and the journal. It does not overwrite repository CSVs or the manifest. Restore into a fresh clone to avoid overwriting an existing local journal or raw data. `SHA256SUMS` verifies the archive parts; `ARCHIVE_VALIDATION.json` records the matching repository commit, snapshot bounds, SQLite consistency, and individual archived file hashes. The repository manifest verifies the final CSVs and event audit together. Archives are split into 750 MiB parts (786,432,000 bytes, under 800 MB).
 
 ## Reproduce the downloaded snapshot
 
@@ -116,7 +116,7 @@ The controller inventory is explicit in `ens_data/contracts.py`. Updates cover t
 
 Update validation: all 39 tests pass, including interrupted resumes, short checkpoint boundaries, anchor/coverage rejection and incremental price caches. A mainnet check acquired blocks 25,991,400–25,991,586, appended through 25,992,586, and matched an independent extraction of the whole interval: 66 events, 0.689861679719419163 ETH, and identical revenue, source, activity and price CSVs. Offline export reproduced all five CSV hashes. These small exploratory exports are not part of the published snapshot; the commands can reproduce the check under `runs/`.
 
-To publish a newer snapshot, commit and push the daily and yearly name event CSVs, manifest, code and documentation. Stop the writer and close/checkpoint SQLite, then run `python scripts/package_release.py releases/SNAPSHOT_DATE` from the repository root. The packager includes only `data/events.csv.gz`, `data/journal.sqlite` and `data/raw/`, rejects overlap with Git-tracked data, creates 1 GiB parts, and verifies every archived file against its source hash. Upload the generated parts, `SHA256SUMS`, and `ARCHIVE_VALIDATION.json` to a **new dated GitHub release**. Record the matching repository commit in its restore instructions; do not attach final CSVs or bundle them in the archive. Keep prior snapshots and research validation as historical evidence, and validate each new snapshot before publishing.
+To publish a newer snapshot, commit and push the daily and yearly name event CSVs, manifest, code and documentation. Stop the writer and close/checkpoint SQLite, then run `python scripts/package_release.py releases/SNAPSHOT_DATE` from the repository root. The packager includes only `data/events.csv.gz`, `data/journal.sqlite` and `data/raw/`, rejects overlap with Git-tracked data, creates 750 MiB parts (under 800 MB), and verifies every archived file against its source hash. Upload the generated parts, `SHA256SUMS`, and `ARCHIVE_VALIDATION.json` to a **new dated GitHub release**. Record the matching repository commit in its restore instructions; do not attach final CSVs or bundle them in the archive. Keep prior snapshots and research validation as historical evidence, and validate each new snapshot before publishing.
 
 ## Files
 

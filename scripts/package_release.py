@@ -1,7 +1,7 @@
 """Package release-only evidence, excluding every Git-tracked data file.
 
 Run with no active pipeline writer: python scripts/package_release.py OUTPUT_DIR
-Requires tar, pigz, and split. Produces 1 GiB archive parts and checksums.
+Requires tar, pigz, and split. Produces 750 MiB archive parts (under 800 MB, the upload-safe limit) and checksums.
 """
 import hashlib
 import json
@@ -11,6 +11,9 @@ import sys
 import tarfile
 from contextlib import closing
 from pathlib import Path
+
+# 750 MiB = 786,432,000 bytes; release uploads of ~1 GiB parts are unreliable.
+PART_SIZE = '750M'
 
 
 def sha256(path):
@@ -50,7 +53,7 @@ def main():
     tar = subprocess.Popen(['tar', '--null', '-T', str(listing), '-cf', '-'], cwd=root, stdout=subprocess.PIPE)
     compressor = subprocess.Popen(['pigz', '-p', '2', '-6'], stdin=tar.stdout, stdout=subprocess.PIPE)
     tar.stdout.close()
-    splitter = subprocess.Popen(['split', '-b', '1G', '-d', '-a', '3', '-', str(output / prefix)], stdin=compressor.stdout)
+    splitter = subprocess.Popen(['split', '-b', PART_SIZE, '-d', '-a', '3', '-', str(output / prefix)], stdin=compressor.stdout)
     compressor.stdout.close()
     codes = [splitter.wait(), compressor.wait(), tar.wait()]
     assert codes == [0, 0, 0], codes
