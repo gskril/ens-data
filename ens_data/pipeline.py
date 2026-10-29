@@ -18,8 +18,9 @@ import cryo
 import polars as pl
 import requests
 
-from .accounting import account_transaction, decode_log, eth, revenue_parts, raw_bytes, hexstr, duration_key, match_durations
-from .contracts import (CONTROLLERS, SOURCES, BY_ADDRESS, BASE_REGISTRARS,
+from .accounting import (account_transaction, account_v2, decode_log, eth, is_v2, parse_fixed18, revenue_parts, raw_bytes,
+                         hexstr, duration_key, match_durations, usd)
+from .contracts import (CONTROLLERS, SOURCES, BY_ADDRESS, BASE_REGISTRARS, V1_HANDOVER_BLOCK, V2_SOURCES,
                         BASE_REGISTERED, BASE_MIGRATED, BASE_RENEWED)
 from .oracle import OracleHistory, solidity_length
 
@@ -74,7 +75,11 @@ def split_large_csv(path, limit=95 * 1024 * 1024):
 
 
 def write_daily_revenue(root):
-    """Pivot source-level accounting into one exact ETH revenue row per day."""
+    """Pivot source-level accounting into one exact revenue row per day.
+
+    ETH sources come first, then ENSv2 stablecoin sources in USD. Only the
+    rightmost total_revenue_usd combines the two currencies.
+    """
     from .daily_prices import read_prices, usd_amount
     root = Path(root)
     prices = read_prices(root)
@@ -82,20 +87,28 @@ def write_daily_revenue(root):
     with (root / "daily_revenue_by_source.csv").open(newline="") as stream:
         for row in csv.DictReader(stream):
             day, source = row["date"], row["source"]
-            if source not in SOURCES or source in days[day]:
+            if source not in SOURCES + V2_SOURCES or source in days[day]:
                 raise ValueError("Unknown or duplicate daily revenue source")
-            days[day][source] = int(row["revenue_wei"])
+            days[day][source] = int(row["revenue_wei"]) if source in SOURCES else parse_fixed18(row["revenue_usd"])
     temporary = root / "daily_revenue.csv.tmp"
     with temporary.open("w", newline="") as stream:
-        columns = ["date", *[source + "_eth" for source in SOURCES], "total_revenue_eth", "total_revenue_usd"]
+        columns = ["date", *[source + "_eth" for source in SOURCES], "total_revenue_eth",
+                   *[source + "_usd" for source in V2_SOURCES], "total_revenue_usd"]
         writer = csv.DictWriter(stream, fieldnames=columns)
         writer.writeheader()
         for day, amounts in sorted(days.items()):
+            wei = sum(amounts.get(source, 0) for source in SOURCES)
+            stable = sum(amounts.get(source, 0) for source in V2_SOURCES)
             writer.writerow({"date": day,
                              **{source + "_eth": eth(amounts.get(source, 0)) for source in SOURCES},
-                             "total_revenue_eth": eth(sum(amounts.values())),
-                             "total_revenue_usd": usd_amount(sum(amounts.values()), prices.get(day))})
+                             "total_revenue_eth": eth(wei),
+                             **{source + "_usd": usd(amounts.get(source, 0)) for source in V2_SOURCES},
+                             "total_revenue_usd": usd_amount(wei, prices.get(day), stable)})
     temporary.replace(root / "daily_revenue.csv")
+
+
+DAILY_REVENUE_LAYOUT = ("one row per UTC day; v1 source columns in ETH, total_revenue_eth, ENSv2 source columns in USD; "
+                        "total_revenue_usd last")
 
 
 def remove_merged_parts(path):
@@ -359,27 +372,31 @@ class Pipeline:
                             [(address, label, str(expiry)) for (address, label), expiry in updates.items()])
         self.db.execute("INSERT INTO expiry_chunks VALUES (?,?)", (start, stop))
 
-    def process_chunk(self, start, stop):
-        updates, history = self.expiry_history(start, stop)
+    def controller_events(self, controller, start, stop):
+        first = max(start, controller.start)
+        if first >= stop:
+            return []
+        # Cryo block ranges are half-open, whereas JSON-RPC end blocks are inclusive.
+        frame = self.collect("logs", f"{controller.name}-{first}-{stop}", blocks=[f"{first}:{stop}"],
+                             contract=[controller.address], inner_request_size=min(self.chunk_size, self.log_request_size))
         events = []
-        for c in CONTROLLERS:
-            first = max(start, c.start)
-            if first >= stop:
+        for row in frame.iter_rows(named=True):
+            if not first <= row["block_number"] < stop:
+                raise ValueError("Log outside requested range")
+            event = decode_log(row)
+            if not event:
                 continue
-            # Cryo block ranges are half-open, whereas JSON-RPC end blocks are inclusive.
-            frame = self.collect("logs", f"{c.name}-{first}-{stop}", blocks=[f"{first}:{stop}"],
-                                 contract=[c.address], inner_request_size=min(self.chunk_size, self.log_request_size))
-            for row in frame.iter_rows(named=True):
-                if not first <= row["block_number"] < stop:
-                    raise ValueError("Log outside requested range")
-                event = decode_log(row)
-                if event:
-                    events.append(event)
-        durations = match_durations(events, history)
-        by_tx = defaultdict(list)
-        for event in events:
-            by_tx[event["transaction_hash"]].append(event)
-        timestamps = self.transfer_timestamps(start, stop, events)
+            if not is_v2(event) and event["block_number"] >= V1_HANDOVER_BLOCK:
+                # ETHRenewerV1.syncWrapper() calls the wrapped controller's
+                # renew(label, 0) without value; the v2 renewer reports the fee.
+                if event["kind"] != "renewal" or event["reported_cost_wei"] != 0:
+                    raise ValueError("Paid v1 controller event after the ENSv2 handover")
+                continue
+            events.append(event)
+        return events
+
+    def block_timestamps(self, events, timestamps=None):
+        timestamps = dict(timestamps or {})
         block_numbers = sorted({e["block_number"] for e in events} - timestamps.keys())
         # Small checkpoint batches preserve completed downloads after interruption.
         for offset in range(0, len(block_numbers), 100):
@@ -390,15 +407,27 @@ class Pipeline:
             timestamps.update({r["block_number"]: r["timestamp"] for r in blocks.iter_rows(named=True)})
             if not set(numbers) <= timestamps.keys():
                 raise ValueError("Cryo did not return all requested block timestamps")
-        prices = {} if self.trace_only else OracleHistory(self).prices(start, stop, events, durations)
+        return timestamps
+
+    def process_chunk(self, start, stop):
+        updates, history = self.expiry_history(start, stop)
+        events = [e for c in CONTROLLERS for e in self.controller_events(c, start, stop)]
+        # ENSv2 token events are self-contained: no expiry history, oracle or traces.
+        legacy = [e for e in events if not is_v2(e)]
+        durations = match_durations(legacy, history)
+        by_tx = defaultdict(list)
+        for event in events:
+            by_tx[event["transaction_hash"]].append(event)
+        timestamps = self.block_timestamps(events, self.transfer_timestamps(start, stop, legacy))
+        prices = {} if self.trace_only else OracleHistory(self).prices(start, stop, legacy, durations)
         transactions = set(tx for tx, ev in by_tx.items() if any(
-            e["kind"] == "renewal" and ((BY_ADDRESS[e["controller"]].refund_bug and
+            e["kind"] == "renewal" and not is_v2(e) and ((BY_ADDRESS[e["controller"]].refund_bug and
                 (tx, e["log_index"]) not in prices) or
                 duration_key(e) not in durations) for e in ev))
         # Independently reconcile at least one event per price band per chunk
         # against execution traces, even when the full oracle series is present.
         sampled_bands = set()
-        for event in sorted(events, key=lambda e: (e["block_number"], e["log_index"])):
+        for event in sorted(legacy, key=lambda e: (e["block_number"], e["log_index"])):
             if (event["transaction_hash"], event["log_index"]) in prices:
                 band = min(solidity_length(raw_bytes(event["name_bytes_hex"])), 5)
                 if band not in sampled_bands:
@@ -418,17 +447,51 @@ class Pipeline:
         for tx, ev in by_tx.items():
             accounted.extend(account_transaction(ev, timestamps[ev[0]["block_number"]], traces[tx], durations, prices))
         with self.db:
-            for e in accounted:
-                payload = b"Z1" + zlib.compress(json.dumps(e).encode("utf-8"), level=1)
-                previous = self.db.execute("SELECT payload FROM events WHERE transaction_hash=? AND log_index=?",
-                                           (e["transaction_hash"], e["log_index"])).fetchone()
-                if previous and load_event(previous[0]) != e:
-                    raise ValueError("Conflicting duplicate log")
-                self.db.execute("INSERT OR IGNORE INTO events VALUES (?,?,?,?)",
-                                (e["transaction_hash"], e["log_index"], e["block_number"], payload))
+            self.insert_events(accounted)
             self.db.execute("INSERT INTO chunks VALUES (?,?)", (start, stop))
             self.commit_expiries(start, stop, updates)
         return len(accounted)
+
+    def insert_events(self, accounted):
+        for e in accounted:
+            payload = b"Z1" + zlib.compress(json.dumps(e).encode("utf-8"), level=1)
+            previous = self.db.execute("SELECT payload FROM events WHERE transaction_hash=? AND log_index=?",
+                                       (e["transaction_hash"], e["log_index"])).fetchone()
+            if previous and load_event(previous[0]) != e:
+                raise ValueError("Conflicting duplicate log")
+            self.db.execute("INSERT OR IGNORE INTO events VALUES (?,?,?,?)",
+                            (e["transaction_hash"], e["log_index"], e["block_number"], payload))
+
+    def add_controllers(self, info, stop):
+        """Backfill controllers appended to the inventory over the covered blocks.
+
+        Only self-contained ENSv2 controllers can be added this way: their events
+        need no expiry history, oracle rounds or traces. The legacy inventory
+        must be unchanged, so historical accounting cannot silently shift.
+        """
+        current = [c.__dict__ for c in CONTROLLERS]
+        saved = info["controllers"]
+        if saved == current:
+            return info
+        added = CONTROLLERS[len(saved):]
+        if current[:len(saved)] != saved or any(c.registration_shape != "v2" for c in added):
+            raise ValueError("Controller inventory changed; review coverage before extending this journal")
+        # Blocks from `stop` onward are acquired by ordinary chunks, which include
+        # every controller in the current inventory.
+        events = []
+        for c in added:
+            print(f"Backfilling {c.name} for blocks {max(c.start, info['start_block']):,}–{stop - 1:,}", flush=True)
+            events.extend(self.controller_events(c, info["start_block"], stop))
+        timestamps = self.block_timestamps(events)
+        accounted = [account_v2(e, timestamps[e["block_number"]]) for e in events]
+        info = dict(info, controllers=current)
+        info.setdefault("controller_additions", []).append(dict(
+            controllers=[c.name for c in added], backfilled_through_block=stop - 1,
+            backfilled_events=len(accounted), requested_at=datetime.now(timezone.utc).isoformat()))
+        with self.db:
+            self.insert_events(accounted)
+            self.db.execute("UPDATE meta SET value=? WHERE key='run'", (json.dumps(info),))
+        return info
 
     def update(self, end=None):
         """Extend a complete journal; resume an interrupted extension at its frozen end."""
@@ -438,8 +501,6 @@ class Pipeline:
             raise ValueError("Restore a snapshot or finish ens-data run before update")
         previous = json.loads(saved[0])
         info = self.initialize(previous["start_block"], None)
-        if info["controllers"] != [c.__dict__ for c in CONTROLLERS]:
-            raise ValueError("Controller inventory changed; review coverage before extending this journal")
         ranges = list(self.db.execute("SELECT start,stop FROM chunks ORDER BY start"))
         expiry_ranges = list(self.db.execute("SELECT start,stop FROM expiry_chunks ORDER BY start"))
         cursor = info["start_block"]
@@ -449,6 +510,7 @@ class Pipeline:
             cursor = stop
         if expiry_ranges != ranges:
             raise ValueError("Expiry checkpoint differs from revenue coverage; repair before updating")
+        info = self.add_controllers(info, cursor)
         if cursor <= info["end_block"]:
             if not info.get("extensions"):
                 raise ValueError("Finish the original snapshot with ens-data run before updating")
@@ -480,7 +542,13 @@ class Pipeline:
         enrich(self)
 
     def run(self, start, end):
-        self._run(self.initialize(start, end))
+        info = self.initialize(start, end)
+        cursor = info["start_block"]
+        for first, stop in self.db.execute("SELECT start,stop FROM chunks ORDER BY start"):
+            if first != cursor:
+                break
+            cursor = stop
+        self._run(self.add_controllers(info, cursor))
 
     def _run(self, info):
         error = None
@@ -543,30 +611,44 @@ class Pipeline:
         fields = ["date", "timestamp", "block_number", "transaction_hash", "log_index", "controller", "controller_name",
                   "kind", "name", "name_bytes_hex", "labelhash", "expires", "duration_seconds", "base_wei", "premium_wei", "revenue_wei",
                   "reported_cost_wei", "correction_wei", "refund_wei", "call_value_wei", "trace_address", "accounting_method",
-                  "oracle_round_id", "eth_usd_answer", "referrer"]
-        event_count, total_revenue, total_correction = 0, 0, 0
+                  "oracle_round_id", "eth_usd_answer", "referrer", "currency", "payment_token", "token_id",
+                  "base_units", "premium_units", "revenue_units", "revenue_usd"]
+        event_count, total_revenue, total_correction, total_usd, v2_count = 0, 0, 0, 0, 0
         event_tmp = self.root / "events.csv.gz.tmp"
-        simple_root = self.root / "name_events"
-        simple_root.mkdir(exist_ok=True)
-        simple_writers = {}
+        simple = {}
+        # v1 yearly files keep their ETH layout; ENSv2 token fees get their own.
+        for key, directory, price_field in [("eth", "name_events", "price_eth"), ("v2", "name_events_v2", "price_usd")]:
+            (self.root / directory).mkdir(exist_ok=True)
+            simple[key] = dict(root=self.root / directory, writers={},
+                               fields=["name", "event", price_field, *(["currency"] if key == "v2" else []), "date"])
         with event_tmp.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", filename="", mtime=0, compresslevel=1) as zipped, io.TextIOWrapper(zipped, encoding="utf-8", newline="") as f, ExitStack() as simple_files:
             writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
             writer.writeheader()
             for (payload,) in self.db.execute("SELECT payload FROM events ORDER BY block_number,log_index"):
                 event = load_event(payload)
                 event.setdefault("name_bytes_hex", "0x" + event["name"].encode("utf-8").hex())
+                event.setdefault("currency", "ETH")
                 writer.writerow(event)
                 year = event["date"][:4]
-                if year not in simple_writers:
-                    stream = simple_files.enter_context((simple_root / f"{year}.csv.tmp").open("w", encoding="utf-8", newline=""))
-                    simple_writers[year] = csv.DictWriter(stream, fieldnames=["name", "event", "price_eth", "date"])
-                    simple_writers[year].writeheader()
-                simple_writers[year].writerow(dict(name=event["name"] + ".eth",
-                                            event={"registration": "register", "renewal": "renew"}[event["kind"]],
-                                            price_eth=eth(event["revenue_wei"]), date=event["date"]))
+                target = simple["v2" if is_v2(event) else "eth"]
+                if year not in target["writers"]:
+                    stream = simple_files.enter_context((target["root"] / f"{year}.csv.tmp").open("w", encoding="utf-8", newline=""))
+                    target["writers"][year] = csv.DictWriter(stream, fieldnames=target["fields"])
+                    target["writers"][year].writeheader()
+                row = dict(name=event["name"] + ".eth", event={"registration": "register", "renewal": "renew"}[event["kind"]],
+                           date=event["date"])
+                if is_v2(event):
+                    row.update(price_usd=event["revenue_usd"], currency=event["currency"])
+                else:
+                    row.update(price_eth=eth(event["revenue_wei"]))
+                target["writers"][year].writerow(row)
                 event_count += 1
                 methods[event["accounting_method"]] += 1
-                total_revenue += event["revenue_wei"]
+                if is_v2(event):
+                    v2_count += 1
+                    total_usd += parse_fixed18(event["revenue_usd"])
+                else:
+                    total_revenue += event["revenue_wei"]
                 total_correction += event["correction_wei"]
                 metric = daily_metrics.setdefault(event["date"], defaultdict(int))
                 metric[event["kind"] + "_count"] += 1
@@ -576,41 +658,51 @@ class Pipeline:
                     group["revenue_wei"] += value
                     group["event_count"] += 1
                     # Premium fees have no purchased duration of their own.
-                    if source != "registration_premium":
+                    if source not in ("registration_premium", "v2_registration_premium"):
                         group["duration_seconds"] += event["duration_seconds"]
                     if source == "renewal":
                         group["reported_cost_wei"] += event["reported_cost_wei"]
                         group["correction_wei"] += event["correction_wei"]
         event_tmp.replace(self.root / "events.csv.gz")
         simple_paths = []
-        for year in sorted(simple_writers):
-            (simple_root / f"{year}.csv.tmp").replace(simple_root / f"{year}.csv")
-            simple_paths.extend(split_large_csv(simple_root / f"{year}.csv"))
-        for stale in simple_root.glob("*.csv"):
-            if stale not in simple_paths:
-                stale.unlink()
+        for key, target in simple.items():
+            paths = []
+            for year in sorted(target["writers"]):
+                (target["root"] / f"{year}.csv.tmp").replace(target["root"] / f"{year}.csv")
+                paths.extend(split_large_csv(target["root"] / f"{year}.csv"))
+            for stale in target["root"].glob("*.csv"):
+                if stale not in paths:
+                    stale.unlink()
+            if key == "v2" and not paths:
+                target["root"].rmdir()
+            simple_paths.extend(paths)
         # Upgrade an earlier uncompressed export only after the gzip is durable.
         (self.root / "events.csv").unlink(missing_ok=True)
         first_day = datetime.fromtimestamp(info["start_timestamp"], timezone.utc).date()
         last_day = datetime.fromtimestamp(info["end_timestamp"], timezone.utc).date()
         if complete:
             # Zero-fill only a fully acquired interval. Incomplete downloads are not zero revenue.
+            # ENSv2 sources start on the first day with a v2 fee event.
+            v2_first = min((day for day, source in groups if source in V2_SOURCES), default=None)
             for offset in range((last_day - first_day).days + 1):
                 day = (first_day + timedelta(days=offset)).isoformat()
                 daily_metrics.setdefault(day, defaultdict(int))
-                for source in SOURCES:
+                for source in SOURCES + (V2_SOURCES if v2_first and day >= v2_first else ()):
                     groups.setdefault((day, source), defaultdict(int))
         tmp = self.root / "daily_revenue_by_source.csv.tmp"
         with tmp.open("w", newline="") as f:
-            columns = ["date", "source", "currency", "revenue_wei", "revenue_eth", "event_count", "duration_seconds",
+            columns = ["date", "source", "currency", "revenue_wei", "revenue_eth", "revenue_usd", "event_count", "duration_seconds",
                        "reported_renewal_cost_wei", "renewal_overstatement_wei", "coverage"]
             writer = csv.DictWriter(f, fieldnames=columns)
             writer.writeheader()
             for (day, source), group in sorted(groups.items()):
                 # Boundary days of a block interval may cover only part of a UTC day.
                 coverage = "complete_day" if complete and first_day.isoformat() < day < last_day.isoformat() else "partial_day"
-                writer.writerow(dict(date=day, source=source, currency="ETH", revenue_wei=group["revenue_wei"],
-                                     revenue_eth=eth(group["revenue_wei"]), event_count=group["event_count"],
+                # ENSv2 amounts are stablecoins at face value, held in 10^-18 USD.
+                amounts = (dict(currency="USD", revenue_wei="", revenue_eth="", revenue_usd=usd(group["revenue_wei"]))
+                           if source in V2_SOURCES else
+                           dict(currency="ETH", revenue_wei=group["revenue_wei"], revenue_eth=eth(group["revenue_wei"]), revenue_usd=""))
+                writer.writerow(dict(date=day, source=source, **amounts, event_count=group["event_count"],
                                      duration_seconds=group["duration_seconds"],
                                      reported_renewal_cost_wei=group["reported_cost_wei"] if source == "renewal" else "",
                                      renewal_overstatement_wei=group["correction_wei"] if source == "renewal" else "",
@@ -625,18 +717,22 @@ class Pipeline:
             for day, metric in sorted(daily_metrics.items()):
                 writer.writerow({"date": day, **{k: metric[k] for k in metric_columns}})
         tmp.replace(self.root / "daily_activity.csv")
-        csv_sum = sum(g["revenue_wei"] for g in groups.values())
-        if csv_sum != total_revenue:
+        csv_sum = sum(g["revenue_wei"] for (_, source), g in groups.items() if source in SOURCES)
+        usd_sum = sum(g["revenue_wei"] for (_, source), g in groups.items() if source in V2_SOURCES)
+        if csv_sum != total_revenue or usd_sum != total_usd:
             raise ValueError("Daily revenue failed event-level reconciliation")
         manifest = dict(info, status="complete" if complete else "partial", last_error=error,
                         completed_block_ranges_half_open=ranges, event_count=event_count,
                         total_revenue_wei=str(total_revenue), total_revenue_eth=eth(total_revenue),
                         renewal_overstatement_wei=str(total_correction),
+                        v2_event_count=v2_count, v2_total_revenue_usd=usd(total_usd),
+                        v2_valuation="ENSv2 fees are stablecoin transfers (USDC, DAI) counted at $1 face value",
                         accounting_methods=dict(methods),
-                        daily_revenue_layout="one row per UTC day; source columns in ETH; total_revenue_usd last",
+                        daily_revenue_layout=DAILY_REVENUE_LAYOUT,
                         journal_payload_encoding="JSON or Z1-prefixed zlib JSON",
                         legacy_split="unavailable: reported separately as registration_combined_legacy",
-                        scope="Ethereum .eth permanent-registrar controller fees; excludes gas, secondary sales, 2017 auctions, subnames")
+                        scope="Ethereum .eth permanent-registrar controller fees, including ENSv2 ETHRegistrar/ETHRenewerV1 "
+                              "stablecoin fees; excludes gas, secondary sales, 2017 auctions, subnames")
         manifest["files_sha256"] = {name: file_sha256(self.root / name)
                                     for name in ["events.csv.gz", "daily_revenue.csv", "daily_revenue_by_source.csv", "daily_activity.csv"]
                                     + [str(path.relative_to(self.root)) for path in simple_paths]}
@@ -649,4 +745,5 @@ class Pipeline:
         else:
             manifest["usd_conversion"] = {"status": "not_indexed", "command": "ens-data prices"}
         atomic_json(self.root / "manifest.json", manifest)
-        print(f"Exported {event_count:,} events; {eth(total_revenue)} ETH; range {manifest['status']}", flush=True)
+        print(f"Exported {event_count:,} events; {eth(total_revenue)} ETH; {usd(total_usd)} USD (ENSv2); "
+              f"range {manifest['status']}", flush=True)

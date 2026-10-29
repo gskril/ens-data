@@ -10,16 +10,19 @@ from .contracts import signature
 from .oracle import ANSWER_UPDATED, FEED
 
 
-def usd_amount(wei, quote):
-    if wei == 0:
-        return "0.00"
-    if not quote or quote["status"] not in ("close", "snapshot_cutoff"):
-        return ""
-    answer, decimals = int(quote["answer"]), int(quote["decimals"])
-    if wei < 0 or answer <= 0 or decimals != 8:
+def usd_amount(wei, quote, stable_atto=0):
+    """ETH valued at the daily close plus ENSv2 stablecoin USD (10^-18 units), in cents."""
+    if wei < 0 or stable_atto < 0:
         raise ValueError("Invalid daily USD conversion inputs")
+    answer, decimals = 0, 8
+    if wei:
+        if not quote or quote["status"] not in ("close", "snapshot_cutoff"):
+            return ""
+        answer, decimals = int(quote["answer"]), int(quote["decimals"])
+        if answer <= 0 or decimals != 8:
+            raise ValueError("Invalid daily USD conversion inputs")
     denominator = 10 ** (18 + decimals)
-    cents = (wei * answer * 100 + denominator // 2) // denominator
+    cents = ((wei * answer + stable_atto * 10**decimals) * 100 + denominator // 2) // denominator
     return f"{cents // 100}.{cents % 100:02d}"
 
 
@@ -235,7 +238,7 @@ class DailyPrices:
 
 
 def enrich(pipeline):
-    from .pipeline import atomic_json, file_sha256, write_daily_revenue
+    from .pipeline import DAILY_REVENUE_LAYOUT, atomic_json, file_sha256, write_daily_revenue
     info = json.loads((pipeline.root / "manifest.json").read_text())
     with (pipeline.root / "daily_revenue.csv").open(newline="") as stream:
         days = [row["date"] for row in csv.DictReader(stream)]
@@ -253,11 +256,12 @@ def enrich(pipeline):
         writer.writerows(rows)
     temporary.replace(path)
     write_daily_revenue(pipeline.root)
-    info["daily_revenue_layout"] = "one row per UTC day; source columns in ETH; total_revenue_usd last"
+    info["daily_revenue_layout"] = DAILY_REVENUE_LAYOUT
     info["usd_conversion"] = dict(source="Chainlink ETH/USD", feed=FEED, timezone="UTC",
                                   method="last available price before midnight; final day capped at snapshot timestamp",
                                   rounding="nearest cent, half up", maximum_price_age_seconds=86400,
                                   missing_price="blank USD for positive ETH revenue; zero ETH remains 0.00 USD",
+                                  stablecoins="ENSv2 USDC/DAI fees added to total_revenue_usd at $1 face value",
                                   first_price_timestamp=min((r["available_at"] for r in records), default=None),
                                   historical_close_check_phases=checked)
     for name in ["daily_eth_usd.csv", "daily_revenue.csv"]:
