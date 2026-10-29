@@ -11437,6 +11437,6 @@ date,source,currency,revenue_wei,revenue_eth,revenue_usd,event_count,duration_se
 2026-10-29,registration_combined_legacy,ETH,0,0.000000000000000000,,0,0,,,partial_day
 2026-10-29,registration_premium,ETH,0,0.000000000000000000,,0,0,,,partial_day
 2026-10-29,renewal,ETH,0,0.000000000000000000,,0,0,0,0,partial_day
-2026-10-29,v2_registration_base,USD,,,401.414768000000000000,36,2047809600,,,partial_day
-2026-10-29,v2_registration_premium,USD,,,0.000000000000000000,36,0,,,partial_day
-2026-10-29,v2_renewal,USD,,,1875.010238000000000000,276,3211652317,,,partial_day
+2026-10-29,v2_registration_base,USD,,,644.811306000000000000,57,3352924800,,,partial_day
+2026-10-29,v2_registration_premium,USD,,,0.000000000000000000,57,0,,,partial_day
+2026-10-29,v2_renewal,USD,,,4384.041243000000000000,353,4575256842,,,partial_day
