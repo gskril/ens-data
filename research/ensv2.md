@@ -43,7 +43,9 @@ The pipeline values both at $1 face value. It keeps amounts in 10⁻¹⁸ USD so
 
 `ETHRenewerV1.renew` extends the v1 BaseRegistrar directly. It then calls `syncWrapper`, which briefly re-adds the NameWrapper as a controller and calls the 2023 wrapped controller's `renew(label, 0)` without value. That second step emits a v1 `NameRenewed(name, label, cost = 0, expires)` from `0x253553…2303b` and a second BaseRegistrar `NameRenewed` with an unchanged expiry. `syncWrapper` is also public.
 
-After the handover, no v1 controller can collect fees, so the pipeline drops every legacy controller event at or after block 26,282,117. The fee is counted once, from the `ETHRenewerV1` event. A legacy event after the handover with a nonzero cost, or a registration, fails the chunk. BaseRegistrar expiry history still includes both renewals, so v1 expiry replay stays correct.
+After the handover, no v1 controller can collect fees. The pipeline therefore indexes v1 controller logs, BaseRegistrar expiry history and Chainlink ETH/USD prices only through block 26,282,117, inclusive. The zero-value sync events are never fetched, and each v1-name renewal fee is counted once, from the `ETHRenewerV1` event.
+
+The handover day (2026-10-27) values its ETH revenue at the last ETH/USD price available at the handover block, with status `v1_cutoff` in `daily_eth_usd.csv`. Later days have status `not_indexed_after_v1` and no price. They have no ETH revenue, so their `total_revenue_usd` is the v2 stablecoin revenue alone.
 
 ## Outputs
 

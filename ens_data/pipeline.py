@@ -336,6 +336,8 @@ class Pipeline:
         """
         updates, durations = {}, {}
         rows = []
+        # Only v1 controller renewals need durations from expiry history.
+        stop = min(stop, V1_HANDOVER_BLOCK + 1)
         for address, deployed in BASE_REGISTRARS:
             first = max(start, deployed)
             if first >= stop:
@@ -374,6 +376,8 @@ class Pipeline:
 
     def controller_events(self, controller, start, stop):
         first = max(start, controller.start)
+        if controller.registration_shape != "v2":
+            stop = min(stop, V1_HANDOVER_BLOCK + 1)
         if first >= stop:
             return []
         # Cryo block ranges are half-open, whereas JSON-RPC end blocks are inclusive.
@@ -384,15 +388,8 @@ class Pipeline:
             if not first <= row["block_number"] < stop:
                 raise ValueError("Log outside requested range")
             event = decode_log(row)
-            if not event:
-                continue
-            if not is_v2(event) and event["block_number"] >= V1_HANDOVER_BLOCK:
-                # ETHRenewerV1.syncWrapper() calls the wrapped controller's
-                # renew(label, 0) without value; the v2 renewer reports the fee.
-                if event["kind"] != "renewal" or event["reported_cost_wei"] != 0:
-                    raise ValueError("Paid v1 controller event after the ENSv2 handover")
-                continue
-            events.append(event)
+            if event:
+                events.append(event)
         return events
 
     def block_timestamps(self, events, timestamps=None):

@@ -34,9 +34,10 @@ BY_ADDRESS = {c.address: c for c in CONTROLLERS}
 LEGACY_CONTROLLERS = tuple(c for c in CONTROLLERS if c.registration_shape != "v2")
 V2_CONTROLLERS = tuple(c for c in CONTROLLERS if c.registration_shape == "v2")
 # DAO execution 0xed4ea910…a741f removed the v1 controllers from the BaseRegistrar and
-# handed its ownership to ETHRenewerV1. Afterwards the 2023 wrapped controller only
-# emits zero-value NameRenewed events from ETHRenewerV1.syncWrapper(); the fee is
-# reported once, by the v2 renewer.
+# handed its ownership to ETHRenewerV1, so v1 controllers cannot collect fees after
+# this block. v1 logs, expiry history and ETH/USD prices are indexed through it
+# (inclusive) and no further. Later wrapped-controller NameRenewed events are
+# zero-value side effects of ETHRenewerV1.syncWrapper(); the v2 renewer reports the fee.
 V1_HANDOVER_BLOCK = 26_282_117
 REGISTERED = {
     "combined": signature("NameRegistered(string,bytes32,address,uint256,uint256)"),

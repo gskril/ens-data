@@ -10,7 +10,7 @@ from eth_utils import keccak
 from ens_data.accounting import account_transaction, decode_log, hexstr, revenue_parts
 from ens_data.contracts import (CONTROLLERS, LEGACY_CONTROLLERS, PAYMENT_TOKENS, V1_HANDOVER_BLOCK,
                                 V2_CONTROLLERS, V2_RENEWED, signature)
-from ens_data.daily_prices import usd_amount
+from ens_data.daily_prices import closing_rows, usd_amount
 from ens_data.pipeline import Pipeline
 from test_accounting import event as legacy_event, renewal as legacy_renewal
 
@@ -57,24 +57,41 @@ def test_premium_registration_splits_base_and_premium_in_usd():
     assert sum(parts.values()) * 10**6 // 10**18 == row["revenue_units"]
 
 
-def test_v1_renewer_fee_is_counted_once_and_wrapper_sync_is_dropped(tmp_path, monkeypatch):
+def test_v1_indexing_stops_at_the_handover_block(tmp_path, monkeypatch):
     tx = next(t for t in FIXTURE["transactions"] if t["transaction_hash"].startswith("0xcbb0"))
     p = Pipeline(tmp_path, "unused")
-    monkeypatch.setattr(p, "collect", lambda dataset, key, **kwargs: pl.DataFrame(
-        [r for r in tx["logs"] if r["address"] in kwargs["contract"]], infer_schema_length=None))
+    requested = []
+
+    def collect(dataset, key, **kwargs):
+        requested.append((kwargs["contract"][0], kwargs["blocks"][0]))
+        first, stop = map(int, kwargs["blocks"][0].split(":"))
+        return pl.DataFrame([r for r in tx["logs"] if r["address"] in kwargs["contract"]
+                             and first <= r["block_number"] < stop], infer_schema_length=None)
+
+    monkeypatch.setattr(p, "collect", collect)
     block = tx["logs"][0]["block_number"]
-    assert block >= V1_HANDOVER_BLOCK
-    wrapped = [r for r in tx["logs"] if r["address"] == WRAPPED.address]
-    assert len(wrapped) == 1 and decode_log(wrapped[0])["reported_cost_wei"] == 0
+    assert block > V1_HANDOVER_BLOCK
+    # The receipt's zero-value wrapped renewal (a syncWrapper side effect) is never fetched.
+    assert [r for r in tx["logs"] if r["address"] == WRAPPED.address]
     assert p.controller_events(WRAPPED, block, block + 1) == []
+    assert p.controller_events(WRAPPED, V1_HANDOVER_BLOCK, block + 1) == []
+    assert requested == [(WRAPPED.address, f"{V1_HANDOVER_BLOCK}:{V1_HANDOVER_BLOCK + 1}")]
     (renewed,) = p.controller_events(RENEWER, block, block + 1)
     assert renewed["kind"] == "renewal" and renewed["revenue_units"] > 0
-    # A paid legacy event after the handover would mean the inventory is wrong.
-    paid = dict(wrapped[0], data="0x" + encode(["string", "uint256", "uint256"], ["x", 1, 2]).hex(),
-                topic1="0x" + keccak(text="x").hex())
-    monkeypatch.setattr(p, "collect", lambda *args, **kwargs: pl.DataFrame([paid]))
-    with pytest.raises(ValueError, match="after the ENSv2 handover"):
-        p.controller_events(WRAPPED, block, block + 1)
+    requested.clear()
+    assert p.expiry_history(block, block + 1) == ({}, {})
+    assert requested == []
+
+
+def test_eth_prices_stop_at_the_handover():
+    handover = 1_793_080_000  # 2026-10-27 UTC
+    records = [dict(available_at=handover - 86400, updated_at=handover - 86400, answer=230000000000, phase_id=7,
+                    aggregator="0x" + "aa" * 20, block_number=1, transaction_hash="0x", log_index=0)]
+    rows = list(closing_rows(["2026-10-26", "2026-10-27", "2026-10-28"], records, handover, "v1_cutoff"))
+    assert [r["status"] for r in rows] == ["close", "v1_cutoff", "not_indexed_after_v1"]
+    assert rows[1]["as_of_timestamp"] == handover and rows[2]["eth_usd_close"] == ""
+    assert rows[1]["price_age_seconds"] == 86400 and usd_amount(10**18, rows[1]) == "2300.00"
+    assert usd_amount(0, rows[2], 10**18) == "1.00"
 
 
 def v2_renewal_log(token=USDC, label="alice", amount=5_000_000, index=1, tx="0x" + "cd" * 32):

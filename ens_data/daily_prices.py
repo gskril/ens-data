@@ -6,7 +6,7 @@ import json
 
 from eth_abi import encode
 
-from .contracts import signature
+from .contracts import V1_HANDOVER_BLOCK, signature
 from .oracle import ANSWER_UPDATED, FEED
 
 
@@ -16,7 +16,7 @@ def usd_amount(wei, quote, stable_atto=0):
         raise ValueError("Invalid daily USD conversion inputs")
     answer, decimals = 0, 8
     if wei:
-        if not quote or quote["status"] not in ("close", "snapshot_cutoff"):
+        if not quote or quote["status"] not in ("close", "snapshot_cutoff", "v1_cutoff"):
             return ""
         answer, decimals = int(quote["answer"]), int(quote["decimals"])
         if answer <= 0 or decimals != 8:
@@ -39,8 +39,12 @@ def read_prices(root):
     return result
 
 
-def closing_rows(days, records, end_timestamp):
-    """Use the last price observable by midnight, including phase-switch seeds."""
+def closing_rows(days, records, end_timestamp, cutoff_status="snapshot_cutoff"):
+    """Use the last price observable by midnight, including phase-switch seeds.
+
+    Days that start after `end_timestamp` (the end of ETH price indexing) get
+    no price: no ETH revenue can exist on them.
+    """
     ordered = sorted(records, key=lambda r: (r["available_at"], r["block_number"], r["log_index"]))
     positions = [r["available_at"] for r in ordered]
     for day in days:
@@ -50,7 +54,9 @@ def closing_rows(days, records, end_timestamp):
         row = dict(date=day, eth_usd_close="", answer="", decimals=8, as_of_timestamp=cutoff,
                    price_updated_at="", price_age_seconds="", phase_id="", aggregator="",
                    block_number="", transaction_hash="", log_index="", status="unavailable")
-        if index >= 0:
+        if next_day - 86400 > end_timestamp:
+            row.update(as_of_timestamp="", status="not_indexed_after_v1")
+        elif index >= 0:
             price = ordered[index]
             age = cutoff - price["updated_at"]
             if age < 0:
@@ -60,7 +66,7 @@ def closing_rows(days, records, end_timestamp):
                        block_number=price["block_number"], transaction_hash=price["transaction_hash"],
                        log_index=price["log_index"])
             row["eth_usd_close"] = f"{price['answer'] // 10**8}.{price['answer'] % 10**8:08d}"
-            row["status"] = "close" if cutoff == next_day - 1 else "snapshot_cutoff"
+            row["status"] = "close" if cutoff == next_day - 1 else cutoff_status
             if age > 86400:
                 row["status"] = "stale"
                 row["eth_usd_close"] = ""
@@ -76,6 +82,12 @@ class DailyPrices:
         path = self.directory / "states.json"
         self.states = json.loads(path.read_text()) if path.exists() else {}
         self.blocks = {}
+
+
+    @property
+    def end(self):
+        # ETH revenue ends at the ENSv2 handover, so prices are not indexed past it.
+        return min(self.info["end_block"], V1_HANDOVER_BLOCK)
 
     def save(self):
         from .pipeline import atomic_json
@@ -101,7 +113,7 @@ class DailyPrices:
 
     def phases(self):
         from .pipeline import atomic_json
-        end = self.info["end_block"]
+        end = self.end
         path = self.directory / "phases.json"
         phases = []
         if path.exists():
@@ -126,7 +138,7 @@ class DailyPrices:
                     lo = mid
             address = "0x" + self.call(FEED, "phaseAggregators(uint16)", end, encode(["uint16"], [phase]))[-20:].hex()
             phases.append(dict(phase=phase, address=address, activation_block=hi, activation_timestamp=self.timestamp(hi)))
-        atomic_json(path, dict(feed=FEED, end_block=end, end_block_hash=self.info["end_block_hash"], phases=phases))
+        atomic_json(path, dict(feed=FEED, end_block=end, end_block_hash=self.block(end)["hash"], phases=phases))
         self.save()
         return phases
 
@@ -167,7 +179,7 @@ class DailyPrices:
         for i, phase in enumerate(phases):
             number, address = phase["phase"], phase["address"]
             start = min(7000000, self.info["start_block"]) if i == 0 else phase["activation_block"]
-            stop = phases[i + 1]["activation_block"] if i + 1 < len(phases) else self.info["end_block"] + 1
+            stop = phases[i + 1]["activation_block"] if i + 1 < len(phases) else self.end + 1
             emitter = address
             if number == 2:
                 # Phase 2 adapts the phase-1 V2 aggregator; it emits no prices itself.
@@ -218,7 +230,7 @@ class DailyPrices:
             phase = row["phase_id"]
             if row["status"] != "close" or phase in checked:
                 continue
-            lo, hi = int(row["block_number"]), self.info["end_block"]
+            lo, hi = int(row["block_number"]), self.end
             cutoff = row["as_of_timestamp"]
             # Interpolation narrows the day-end block quickly; binary bounds guarantee termination.
             while hi - lo > 1:
@@ -246,7 +258,10 @@ def enrich(pipeline):
         raise ValueError("No daily revenue rows to price")
     prices = DailyPrices(pipeline, info)
     records = prices.acquire()
-    rows = list(closing_rows(days, records, info["end_timestamp"]))
+    if info["end_block"] > V1_HANDOVER_BLOCK:
+        rows = list(closing_rows(days, records, prices.timestamp(V1_HANDOVER_BLOCK), "v1_cutoff"))
+    else:
+        rows = list(closing_rows(days, records, info["end_timestamp"]))
     checked = prices.validate_closes(rows)
     path = pipeline.root / "daily_eth_usd.csv"
     temporary = path.with_suffix(".tmp")
@@ -258,7 +273,8 @@ def enrich(pipeline):
     write_daily_revenue(pipeline.root)
     info["daily_revenue_layout"] = DAILY_REVENUE_LAYOUT
     info["usd_conversion"] = dict(source="Chainlink ETH/USD", feed=FEED, timezone="UTC",
-                                  method="last available price before midnight; final day capped at snapshot timestamp",
+                                  method="last available price before midnight; final day capped at snapshot timestamp, "
+                                         f"or at the ENSv2 handover block {V1_HANDOVER_BLOCK} after which no ETH revenue exists",
                                   rounding="nearest cent, half up", maximum_price_age_seconds=86400,
                                   missing_price="blank USD for positive ETH revenue; zero ETH remains 0.00 USD",
                                   stablecoins="ENSv2 USDC/DAI fees added to total_revenue_usd at $1 face value",
