@@ -16,6 +16,8 @@ def main():
     parser.add_argument("--chunk-size", type=int, default=10_000)
     parser.add_argument("--log-request-size", type=int, default=20_000,
                         help="Blocks per eth_getLogs request (use 10 for Alchemy free tier)")
+    parser.add_argument("--verify-logs", action="store_true",
+                        help="Fetch every log window until two consecutive results agree (for unreliable public RPCs)")
     parser.add_argument("--trace-only", action="store_true", help="Trace every affected renewal instead of rebuilding oracle rounds")
     args = parser.parse_args()
     url = os.getenv("ETH_RPC_URL")
@@ -23,7 +25,8 @@ def main():
         parser.error("Set ETH_RPC_URL to an Ethereum mainnet RPC supporting historical trace_transaction")
     if min(args.requests_per_second, args.concurrency, args.chunk_size, args.log_request_size) < 1:
         parser.error("Rate, concurrency and chunk size must be positive")
-    pipeline = Pipeline(args.output, url, args.requests_per_second, args.concurrency, args.chunk_size, args.log_request_size, args.trace_only)
+    pipeline = Pipeline(args.output, url, args.requests_per_second, args.concurrency, args.chunk_size, args.log_request_size, args.trace_only,
+                        args.verify_logs)
     if args.command == "run":
         pipeline.run(args.start_block, args.end_block)
     elif args.command == "update":

@@ -117,6 +117,24 @@ def remove_merged_parts(path):
             child.unlink(missing_ok=True)
 
 
+def agreeing_logs(fetch, attempts=8):
+    """Refetch logs until two consecutive results agree and include every log seen.
+
+    Load-balanced public RPCs can route eth_getLogs to a lagging node that
+    returns a short or empty result instead of an error. A node never invents
+    logs, so any log seen once must appear in the accepted result.
+    """
+    seen, previous = set(), None
+    for _ in range(attempts):
+        frame = fetch()
+        keys = set(zip(frame["transaction_hash"].to_list(), frame["log_index"].to_list())) if len(frame) else set()
+        seen |= keys
+        if keys == previous and keys == seen:
+            return frame
+        previous = keys
+    raise ValueError("eth_getLogs results did not converge; the provider is returning inconsistent logs")
+
+
 def load_event(payload):
     if isinstance(payload, bytes) and payload.startswith(b"Z1"):
         payload = zlib.decompress(payload[2:])
@@ -150,7 +168,8 @@ class RPC:
 
 
 class Pipeline:
-    def __init__(self, root, rpc_url, rps=1, concurrency=1, chunk_size=10_000, log_request_size=20_000, trace_only=False):
+    def __init__(self, root, rpc_url, rps=1, concurrency=1, chunk_size=10_000, log_request_size=20_000, trace_only=False,
+                 verify_logs=False):
         self.root = Path(root)
         self.raw = self.root / "raw"
         self.raw.mkdir(parents=True, exist_ok=True)
@@ -158,6 +177,7 @@ class Pipeline:
         self.rps, self.concurrency, self.chunk_size = rps, concurrency, chunk_size
         self.log_request_size = log_request_size
         self.trace_only = trace_only
+        self.verify_logs = verify_logs
         self.alchemy_metadata = (urlparse(rpc_url or "").hostname or "").endswith(".alchemy.com")
         self.db = sqlite3.connect(self.root / "journal.sqlite")
         self.db.executescript("""
@@ -207,9 +227,11 @@ class Pipeline:
         for attempt in range(4):
             try:
                 # Explicit output format/columns avoid uint256 float conversions.
-                frame = cryo.collect(actual_dataset, rpc=self.rpc.url, hex=True, verbose=False,
-                                     requests_per_second=request_rate, max_concurrent_requests=request_concurrency,
-                                     **kwargs)
+                def fetch():
+                    return cryo.collect(actual_dataset, rpc=self.rpc.url, hex=True, verbose=False,
+                                        requests_per_second=request_rate, max_concurrent_requests=request_concurrency,
+                                        **kwargs)
+                frame = agreeing_logs(fetch) if self.verify_logs and actual_dataset == "logs" else fetch()
                 break
             except BaseException as exc:
                 if isinstance(exc, (KeyboardInterrupt, SystemExit)):
