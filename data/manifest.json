@@ -1,10 +1,10 @@
 {
   "chain_id": 1,
   "start_block": 7000000,
-  "end_block": 26280235,
-  "end_block_hash": "0x633cf81f72ea107938f332bd93fe92114188495a51707bcb407bfa4e4500cbcc",
+  "end_block": 26297619,
+  "end_block_hash": "0x0b29f0a30aea45ab6b0053163bf869d1b7ed246639935dedfe882cc86997c17d",
   "start_timestamp": 1546466952,
-  "end_timestamp": 1793058263,
+  "end_timestamp": 1793267543,
   "created_at": "2026-09-16T17:56:18.745440+00:00",
   "cryo_version": "0.3.2",
   "controllers": [
@@ -41,6 +41,20 @@
       "address": "0x59e16fccd424cc24e280be16e11bcd56fb0ce547",
       "start": 22764821,
       "registration_shape": "referrer",
+      "refund_bug": false
+    },
+    {
+      "name": "eth_registrar_v2",
+      "address": "0xd6d8369e55c94ae8afa714e6cf7ab5be54d5cc81",
+      "start": 26183999,
+      "registration_shape": "v2",
+      "refund_bug": false
+    },
+    {
+      "name": "eth_renewer_v1_v2",
+      "address": "0x56c447f308f463a01121c41e72b0e7e7557fcb68",
+      "start": 26184001,
+      "registration_shape": "v2",
       "refund_bug": false
     }
   ],
@@ -95,6 +109,31 @@
       "end_block": 26280235,
       "end_block_hash": "0x633cf81f72ea107938f332bd93fe92114188495a51707bcb407bfa4e4500cbcc",
       "requested_at": "2026-10-27T00:00:45.705768+00:00"
+    },
+    {
+      "previous_end_block": 26280235,
+      "previous_end_block_hash": "0x633cf81f72ea107938f332bd93fe92114188495a51707bcb407bfa4e4500cbcc",
+      "end_block": 26296726,
+      "end_block_hash": "0x920f4f923d221ea996473776bb117860a6fa9453d5a569e358e505ed6bdaa088",
+      "requested_at": "2026-10-29T08:12:48.363154+00:00"
+    },
+    {
+      "previous_end_block": 26296726,
+      "previous_end_block_hash": "0x920f4f923d221ea996473776bb117860a6fa9453d5a569e358e505ed6bdaa088",
+      "end_block": 26297619,
+      "end_block_hash": "0x0b29f0a30aea45ab6b0053163bf869d1b7ed246639935dedfe882cc86997c17d",
+      "requested_at": "2026-10-29T10:10:11.830209+00:00"
+    }
+  ],
+  "controller_additions": [
+    {
+      "controllers": [
+        "eth_registrar_v2",
+        "eth_renewer_v1_v2"
+      ],
+      "backfilled_through_block": 26280235,
+      "backfilled_events": 0,
+      "requested_at": "2026-10-29T08:12:47.259043+00:00"
     }
   ],
   "status": "complete",
@@ -887,27 +926,39 @@
     [
       26229957,
       26280236
+    ],
+    [
+      26280236,
+      26296727
+    ],
+    [
+      26296727,
+      26297620
     ]
   ],
-  "event_count": 5320687,
-  "total_revenue_wei": "65134709815758430294996",
-  "total_revenue_eth": "65134.709815758430294996",
-  "renewal_overstatement_wei": "381825822488513177978828",
+  "event_count": 5325888,
+  "total_revenue_wei": "65135323812846597953526",
+  "total_revenue_eth": "65135.323812846597953526",
+  "renewal_overstatement_wei": "381825824093773183141594",
+  "v2_event_count": 3375,
+  "v2_total_revenue_usd": "40382.187171000000000000",
+  "v2_valuation": "ENSv2 fees are stablecoin transfers (USDC, DAI) counted at $1 face value",
   "accounting_methods": {
-    "controller_event": 3759000,
-    "trace_oracle_and_refund": 24003,
-    "controller_event_and_expiry_history": 654513,
-    "oracle_rounds_and_expiry_history": 883171
+    "controller_event": 3759057,
+    "trace_oracle_and_refund": 24019,
+    "controller_event_and_expiry_history": 654525,
+    "oracle_rounds_and_expiry_history": 884912,
+    "v2_token_event": 3375
   },
-  "daily_revenue_layout": "one row per UTC day; source columns in ETH; total_revenue_usd last",
+  "daily_revenue_layout": "one row per UTC day; v1 source columns in ETH, total_revenue_eth, ENSv2 source columns in USD; total_revenue_usd last",
   "journal_payload_encoding": "JSON or Z1-prefixed zlib JSON",
   "legacy_split": "unavailable: reported separately as registration_combined_legacy",
-  "scope": "Ethereum .eth permanent-registrar controller fees; excludes gas, secondary sales, 2017 auctions, subnames",
+  "scope": "Ethereum .eth permanent-registrar controller fees, including ENSv2 ETHRegistrar/ETHRenewerV1 stablecoin fees; excludes gas, secondary sales, 2017 auctions, subnames",
   "files_sha256": {
-    "events.csv.gz": "c100c8da4fbbeaa70dbed794a1040fdaad4886ac757670196171300474cd9d0c",
-    "daily_revenue.csv": "85b406efba4214deac2a8a0b8d53d4b8f35d166ae16d7cad71d16aab1eb6aa29",
-    "daily_revenue_by_source.csv": "ac4b989431b89f9a5cbef20776108f6a0594058fa2dcb90ae79fd2bb95d8e2f2",
-    "daily_activity.csv": "23984b3c2464c7e896ec86d39f7d3be0d509f0e6e49db7fb4ddeb65130e5fb4d",
+    "events.csv.gz": "789fc21a483aafa1c8c488416b008c5a475fdccf1ca4980ea93a8fa9480e803b",
+    "daily_revenue.csv": "2e6a13ec2633353c7fa503df0ad3a7427d51e9a1edade2da9c87f6d5a1e22317",
+    "daily_revenue_by_source.csv": "bc5e5164071156b9457dbddc6864c2aa5e3bb470dd3d98fa6197f14e5e6d1e9f",
+    "daily_activity.csv": "37779d5840c01af1bc1bd3b5c080edb2ac2d7d0b86ef1cbdf49cd38a660010e1",
     "name_events/2019.csv": "f35c59ffc234ab45e965eb57ab85629160abbf10f4c7cbf24c028ba2e9905f33",
     "name_events/2020.csv": "4b4495822da313558d6fab7589b5ebb59ac8bc61b48756fc50ccd5f5794e0fab",
     "name_events/2021.csv": "b00ff3889d4d49543a887f074d8e901e51801d6b2e71fc363e01d6cef1116b8f",
@@ -916,17 +967,19 @@
     "name_events/2023.csv": "fff73db2d887fa779969b8992baade3d786711c331ec7408345c0e97126e515f",
     "name_events/2024.csv": "0d1aaf492c7c5eef6026d0eee6712f4ef7cf6f1c9b7a4190b35303197573e372",
     "name_events/2025.csv": "4cc63a344888091c6b8bdb37c98fd5261de77740c2a14c8f716f06bea3b9cb52",
-    "name_events/2026.csv": "a67caa9b56623929617c4acb1c06b86884b379175648691606289fc41935b180",
-    "daily_eth_usd.csv": "92a9fcf5cb3924c9a3af7bfd2857c41e87562faafdb94074d832e32dde3aa452"
+    "name_events/2026.csv": "80cc5f89f601f12ed1478890b8689b26ca3efd125e3b51ece01321a0a6e2c289",
+    "name_events_v2/2026.csv": "9c247593a0343f9d916678ef8f3ba966641e00478746b66767c7e02062de03f6",
+    "daily_eth_usd.csv": "80c30ba87370568e3bf18c418eb464ffee5220ebf13daebf81e71278558a4e37"
   },
   "usd_conversion": {
     "source": "Chainlink ETH/USD",
     "feed": "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419",
     "timezone": "UTC",
-    "method": "last available price before midnight; final day capped at snapshot timestamp",
+    "method": "last available price before midnight; final day capped at snapshot timestamp, or at the ENSv2 handover block 26282117 after which no ETH revenue exists",
     "rounding": "nearest cent, half up",
     "maximum_price_age_seconds": 86400,
     "missing_price": "blank USD for positive ETH revenue; zero ETH remains 0.00 USD",
+    "stablecoins": "ENSv2 USDC/DAI fees added to total_revenue_usd at $1 face value",
     "first_price_timestamp": 1579122628,
     "historical_close_check_phases": [
       1,

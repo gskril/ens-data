@@ -2,11 +2,13 @@
 
 Cryo extracts Ethereum mainnet ENS registration/renewal logs and historical transaction traces. The pipeline writes exact, cash-basis daily revenue in ETH, purchased durations, and event-level evidence. No wallet or signing key is used.
 
-The included backfill is complete for blocks **7,000,000–26,280,235**, ending October 26, 2026 at 23:44:23 UTC. It contains **5,320,687 events** and **65,134.709815758430294996 ETH** of corrected revenue. Start with [data/daily_revenue.csv](data/daily_revenue.csv): **one row per UTC day, one ETH column per revenue type, total ETH, and `total_revenue_usd` at the far right**. USD uses the day's Chainlink closing price where available; historical gaps are described below. Purchased durations and unique daily counts are in [data/daily_activity.csv](data/daily_activity.csv). Boundary UTC days are flagged in the detailed source table even though the requested block range is complete.
+The included backfill is complete for blocks **7,000,000–26,297,619**, ending October 29, 2026 at 09:52:23 UTC. It contains **5,325,888 events**: **65,135.323812846597953526 ETH** of corrected v1 revenue, and, since ENSv2 launched on October 27, **3,375 ENSv2 events** worth **$40382.187171** in stablecoins. Start with [data/daily_revenue.csv](data/daily_revenue.csv): **one row per UTC day, one ETH column per v1 revenue type, total ETH, one USD column per ENSv2 revenue type, and `total_revenue_usd` at the far right**. USD uses the day's Chainlink closing price where available; historical gaps are described below. Purchased durations and unique daily counts are in [data/daily_activity.csv](data/daily_activity.csv). Boundary UTC days are flagged in the detailed source table even though the requested block range is complete.
 
-The renewal-event bug would otherwise add **381,825.822488513177978828 ETH** of refunded/repeatedly counted value to revenue. See the independently traced bulk-renewal example in the [accounting research](research/contract-accounting.md). The refreshed snapshot passes 41 pipeline tests; [October 26 validation](research/validation-2026-10-26.json) reconciles block coverage, CSV checksums, exact totals, event counts, durations, yearly name exports and daily USD conversion. The dashboard build and test also pass. [October 19 validation](research/validation-2026-10-19.json), [October 12 validation](research/validation-2026-10-12.json), [October 10 validation](research/validation-2026-10-10.json), [September 27 validation](research/validation-2026-09-27.json), [September 22 validation](research/validation-2026-09-22.json) and the [original publication validation](research/final-validation.json) remain historical records.
+The renewal-event bug would otherwise add **381,825.824093773183141594 ETH** of refunded/repeatedly counted value to revenue. See the independently traced bulk-renewal example in the [accounting research](research/contract-accounting.md). The refreshed snapshot passes 50 pipeline tests; [October 29 validation](research/validation-2026-10-29.json) reconciles block coverage, CSV checksums and totals, and checks every log in the new block range against an independent double fetch. [October 26 validation](research/validation-2026-10-26.json) reconciles block coverage, CSV checksums, exact totals, event counts, durations, yearly name exports and daily USD conversion. The dashboard build and test also pass. [October 19 validation](research/validation-2026-10-19.json), [October 12 validation](research/validation-2026-10-12.json), [October 10 validation](research/validation-2026-10-10.json), [September 27 validation](research/validation-2026-09-27.json), [September 22 validation](research/validation-2026-09-22.json) and the [original publication validation](research/final-validation.json) remain historical records.
 
 ## Download the snapshot evidence
+
+> **October 29 snapshot:** the evidence archive (journal, raw Parquet and event audit) for blocks through 26,297,619 has not been released yet. The CSVs in this repository are reproducible from the October 26 release below: restore it, then run `uv run ens-data update --output data --end-block 26297619 --verify-logs` with the current code.
 
 Published data has one home: the repository contains the final daily and yearly CSV outputs and `data/manifest.json`; the [snapshot-2026-10-26 release](https://github.com/gskril/ens-data/releases/tag/snapshot-2026-10-26) contains only `data/raw/`, the resumable `data/journal.sqlite` checkpoint, and the detailed `data/events.csv.gz` audit. Release checksums and archive validation accompany that evidence. Derived outputs are not duplicated as release attachments or inside its archive.
 
@@ -69,7 +71,9 @@ uv run ens-data prices --output data --log-request-size 10000 \
 
 The default range starts at block 7,000,000 (a conservative floor preceding the 2019 permanent registrar) and ends at the RPC's finalized block. Both CLI bounds are **inclusive**. The end block and its hash are frozen in the journal: repeating `run` resumes the same snapshot. Use `update` below to extend a restored snapshot, or another output directory for an independent range. The local `.env` is ignored and must not be committed. The rate settings above were tested with the supplied Alchemy account; reduce them to your provider's limits. See [RPC findings](research/alchemy.md).
 
-The supplied public RPC's mainnet route is `https://evm.stupidtech.net/v1/1`; use `--requests-per-second 1 --concurrency 1 --log-request-size 2000` with it. It publishes a limit of 60 requests per minute. Cryo also makes provider metadata requests, so occasional throttling may still require a retry.
+For `update` after the ENSv2 launch, Tenderly's free gateway `https://mainnet.gateway.tenderly.co` is much faster. Use `--requests-per-second 5 --concurrency 2 --log-request-size 10000 --verify-logs`. It serves historical logs and `eth_call`, but rate-limits `trace_transaction`, so it cannot run a v1 backfill. Updates past block 26,282,117 need no traces. In testing, a 900-block update took under four minutes, mostly local export, and matched the public route below event for event.
+
+The supplied public RPC's mainnet route is `https://evm.stupidtech.net/v1/1`; use `--requests-per-second 1 --concurrency 1 --log-request-size 2000 --verify-logs` with it. Its load-balanced backends sometimes answer `eth_getLogs` with a short or empty result instead of an error. During the October 29 refresh this silently dropped 244 ENSv2 events. `--verify-logs` refetches each log window until two consecutive results agree and include every log seen so far. It publishes a limit of 60 requests per minute. Cryo also makes provider metadata requests, so occasional throttling may still require a retry.
 
 To independently recreate the exact published block range without its journal/cache:
 
@@ -112,7 +116,7 @@ If acquisition is interrupted, rerun the same `update` command: it resumes the p
 
 Run only one writer per output directory. Updating changes the local `data/` files; the published GitHub release remains frozen. Restore into another clone first if you want to retain a local copy of the original snapshot. Never concatenate daily CSVs from separate block ranges: two ranges can share a UTC day, and the final-day closing price must be recomputed.
 
-The controller inventory is explicit in `ens_data/contracts.py`. Updates cover those five controllers; future ENS deployments or pricing changes require an inventory/accounting review and tests. A changed inventory is rejected for an existing journal so historical gaps cannot be silently skipped. Chainlink phase transitions are discovered automatically.
+The controller inventory is explicit in `ens_data/contracts.py`. Updates cover the five v1 controllers and the two ENSv2 fee contracts; future ENS deployments or pricing changes require an inventory/accounting review and tests. A changed v1 inventory is rejected for an existing journal, so historical gaps cannot be silently skipped. Appended ENSv2 controllers are backfilled over the covered range. Chainlink phase transitions are discovered automatically.
 
 Update validation: all 39 tests pass, including interrupted resumes, short checkpoint boundaries, anchor/coverage rejection and incremental price caches. A mainnet check acquired blocks 25,991,400–25,991,586, appended through 25,992,586, and matched an independent extraction of the whole interval: 66 events, 0.689861679719419163 ETH, and identical revenue, source, activity and price CSVs. Offline export reproduced all five CSV hashes. These small exploratory exports are not part of the published snapshot; the commands can reproduce the check under `runs/`.
 
@@ -122,19 +126,20 @@ To publish a newer snapshot, commit and push the daily and yearly name event CSV
 
 | File | Contents |
 | --- | --- |
-| `data/daily_revenue.csv` | One row per UTC day; revenue-type columns in ETH, total ETH, and rightmost `total_revenue_usd` |
+| `data/daily_revenue.csv` | One row per UTC day; v1 revenue-type columns in ETH, total ETH, ENSv2 revenue-type columns in USD, and rightmost `total_revenue_usd` |
 | `data/daily_eth_usd.csv` | Closing ETH/USD price, quote timestamp/age, feed phase, block/log evidence, and availability status |
-| `data/daily_revenue_by_source.csv` | Detailed UTC date × source table; exact wei/ETH, counts, duration, refund corrections and coverage flags |
+| `data/daily_revenue_by_source.csv` | Detailed UTC date × source table; exact wei/ETH (v1) or USD (ENSv2), counts, duration, refund corrections and coverage flags |
 | `data/daily_activity.csv` | One row per UTC day: registration/renewal counts and duration totals, without duplicate premium rows |
 | `data/events.csv.gz` | Compressed CSV: one row per controller event, including name, transaction, log index, expiry, duration, reported/corrected fees and accounting evidence |
-| `data/name_events/YYYY.csv` | Plain CSV: `name,event,price_eth,date`, one row per registration or renewal, in block/log order |
+| `data/name_events/YYYY.csv` | Plain CSV: `name,event,price_eth,date`, one row per v1 (ETH) registration or renewal, in block/log order |
+| `data/name_events_v2/YYYY.csv` | Plain CSV: `name,event,price_usd,currency,date`, one row per ENSv2 (stablecoin) registration or renewal |
 | `data/manifest.json` | Requested range, finalized anchor hash, completed ranges, status, totals and CSV checksums |
 | `data/raw/` | Resumable Cryo Parquet evidence and optional timestamp metadata |
 | `data/journal.sqlite` | Transactional checkpoint and exact integer event journal; payloads use JSON or `Z1`-prefixed zlib JSON, never SQLite numeric sums |
 
 `name_events/YYYY.csv` files are split by UTC year and regenerated by `run`, `update`, and the offline `export` command alongside the other CSVs, with a SHA-256 checksum in the manifest. Names include the `.eth` suffix; `event` is `register` or `renew`; `price_eth` is the corrected total fee (including registration premiums), rendered with exactly 18 decimal places; `date` is the UTC date (`YYYY-MM-DD`). This is historical activity, not a current ownership list. Years larger than 95 MiB are automatically split into `YYYY-part1.csv`, `YYYY-part2.csv`, etc., keeping each file below GitHub’s 100 MiB limit without splitting CSV records.
 
-The main CSV columns, in order, are `date`, `registration_base_eth`, `registration_premium_eth`, `registration_combined_legacy_eth`, `renewal_eth`, `total_revenue_eth`, and `total_revenue_usd`. Total ETH is the exact sum of the four source columns, calculated in integer wei before decimal formatting.
+The main CSV columns, in order, are `date`, `registration_base_eth`, `registration_premium_eth`, `registration_combined_legacy_eth`, `renewal_eth`, `total_revenue_eth`, `v2_registration_base_usd`, `v2_registration_premium_usd`, `v2_renewal_usd`, and `total_revenue_usd`. Total ETH is the exact sum of the four ETH source columns, calculated in integer wei before decimal formatting. It does **not** include ENSv2 revenue, which is paid in stablecoins. `name_events_v2/YYYY.csv` follows the same conventions as the v1 files, with `price_usd` (18 decimal places) and the payment token symbol in `currency`.
 
 Revenue sources are:
 
@@ -142,6 +147,7 @@ Revenue sources are:
 - `registration_premium`: the one-time temporary premium, including legitimate large premiums. It is never capped or discarded as an outlier.
 - `registration_combined_legacy`: older events' exact combined registration fee. Those events **do not expose the base/premium split**. Missing breakdowns are not fabricated or assigned a zero premium.
 - `renewal`: the actual fee retained by the controller, checked against its oracle result and refund in the execution trace.
+- `v2_registration_base`, `v2_registration_premium`, `v2_renewal`: ENSv2 fees, from the `base`, `premium` and `amount` fields of the v2 `ETHRegistrar`/`ETHRenewerV1` events. These equal the stablecoin amounts transferred to the beneficiary. USDC and DAI are counted at $1 face value and summed exactly in 10⁻¹⁸ USD. See [research/ensv2.md](research/ensv2.md).
 
 `duration_seconds` measures purchased time; **duration is not a separate revenue source**. Registration duration is `expires - block.timestamp`; renewal duration comes from successive base-registrar expiries, or the matching controller invocation's calldata when history is unavailable. Premium rows in the detailed source table carry zero duration, since the premium does not purchase additional time. Registration base already covers the entire purchased duration, so do not add duration-priced rent a second time. Use `daily_activity.csv` for unique event counts: base and premium rows in the detailed table refer to the same registrations.
 
@@ -149,7 +155,7 @@ The detailed source table preserves canonical `revenue_wei` amounts and `revenue
 
 ## Daily USD valuation
 
-`total_revenue_usd = total_revenue_eth × closing ETH/USD price`, rounded to cents (half up) using integer arithmetic. The closing price is the last Chainlink update available before the next UTC midnight. For the unfinished final day, the cutoff is the snapshot timestamp (**2026-10-26 23:44:23 UTC** in the current dataset). This values the day's ETH receipts at one daily price; it does not sum transaction-time USD values.
+`total_revenue_usd = total_revenue_eth × closing ETH/USD price + ENSv2 stablecoin revenue`, rounded to cents (half up) using integer arithmetic. The closing price is the last Chainlink update available before the next UTC midnight. ETH price indexing ends at the ENSv2 handover block (26,282,117). The handover day values ETH at that block's price (`v1_cutoff`), and later days are `not_indexed_after_v1` because they have no ETH revenue. Before ENSv2, the unfinished final day used the snapshot timestamp as its cutoff. This values the day's ETH receipts at one daily price; it does not sum transaction-time USD values.
 
 `ens-data prices` follows the historical [Chainlink ETH/USD feed](https://data.chain.link/feeds/ethereum/mainnet/eth-usd) across all seven aggregator phases, discovers exact activation blocks, and seeds each new phase with its existing answer. The legacy phase-two adapter reads the phase-one aggregator, so its updates come from that underlying contract. Cryo logs and historical state checks are cached under `data/raw/daily_price_logs/` and `data/raw/daily_prices/`. A closing price in each phase is independently checked against historical contract state. See [Chainlink's historical-data documentation](https://docs.chain.link/data-feeds/historical-data).
 
@@ -173,7 +179,7 @@ The wrapped event equals the call value. With complete oracle history, subtract 
 
 ## Coverage and provenance
 
-The five-controller inventory includes the two 2019 controllers omitted from the supplied `ens-indexer` configuration. Deployment floors for the three newer controllers are taken from that reference and ENS deployment artifacts. Older addresses are also listed in [ENS proposal EP 6.19](https://docs.ens.domains/dao/proposals/6.19/).
+The v1 inventory includes the two 2019 controllers omitted from the supplied `ens-indexer` configuration. Deployment floors for the three newer controllers are taken from that reference and ENS deployment artifacts. Older addresses are also listed in [ENS proposal EP 6.19](https://docs.ens.domains/dao/proposals/6.19/).
 
 | Controller | Address | Event schema |
 | --- | --- | --- |
@@ -182,8 +188,12 @@ The five-controller inventory includes the two 2019 controllers omitted from the
 | 2020 legacy | `0x283af0b28c62c092c9727f1ee09c02ca627eb7f5` | combined registration cost |
 | 2023 wrapped | `0x253553366da8546fc250f225fe3d25d0c782303b` | base + premium; renewal refund bug |
 | 2025 unwrapped | `0x59e16fccd424cc24e280be16e11bcd56fb0ce547` | base + premium + referrer; corrected renewal event |
+| ENSv2 `ETHRegistrar` | `0xd6d8369e55c94ae8afa714e6cf7ab5be54d5cc81` | v2 registrations and renewals; ERC‑20 base + premium / amount |
+| ENSv2 `ETHRenewerV1` | `0x56c447f308f463a01121c41e72b0e7e7557fcb68` | renewals of unmigrated v1 names; ERC‑20 amount |
 
-Scope: permanent-registrar `.eth` controller fees on Ethereum. Excludes 2017 auction deposits/burns, separate short-name auctions, secondary-market sales, gas, subname registrations, DNS imports and contracts outside this inventory. BaseRegistrar, NameWrapper and referral-forwarder events are not counted again as revenue. This measures gross controller fee collections, not subsequent treasury withdrawals or referral-program expenses.
+ENSv2 went live when the DAO handed the v1 BaseRegistrar to `ETHRenewerV1` at block 26,282,117. After that block the v1 controllers cannot collect fees. v1 controller logs, BaseRegistrar expiry history and Chainlink ETH/USD prices are indexed only through that block, inclusive. The 2023 wrapped controller's later zero-value `NameRenewed` events, which come from `ETHRenewerV1` syncing the NameWrapper, are never fetched. The v2 renewer reports those fees. Older journals are upgraded in place: `update` backfills the newly added v2 controllers over the blocks already covered and records this under `controller_additions` in the manifest.
+
+Scope: permanent-registrar `.eth` controller fees on Ethereum, including ENSv2 stablecoin fees. Excludes 2017 auction deposits/burns, separate short-name auctions, secondary-market sales, gas, subname registrations, DNS imports and contracts outside this inventory. BaseRegistrar, NameWrapper and referral-forwarder events are not counted again as revenue. This measures gross controller fee collections, not subsequent treasury withdrawals or referral-program expenses.
 
 Full runs zero-fill days/sources without events. Partial runs include only observed dates, with source columns showing the acquired subtotal; consult the manifest before treating them as full-day totals. In `daily_revenue_by_source.csv`, `coverage=partial_day` flags the two boundary dates of a block interval and all rows of an incomplete backfill. Only fully acquired interior dates are marked `complete_day`. The journal and raw files belong to one anchored history. Only `update` advances its end block; do not mix unrelated journals or caches.
 
@@ -194,4 +204,5 @@ References inspected:
 - [Cryo](https://github.com/paradigmxyz/cryo), source `559b65455d7ef6b03e8e9e96a0e50fd4fe8a9c86`; runtime pinned to PyPI `0.3.2` and tested against its actual schemas.
 - [gskril/ens-indexer](https://github.com/gskril/ens-indexer/tree/d76eddbef0e369a843fa92266cbaeeb1b3d66ece), especially controller ABIs/configuration and the separation of registrar and controller events.
 - [ENS contracts](https://github.com/ensdomains/ens-contracts/tree/121dc232df06be28e5eabb34ebfc4bc788498c05), including deployed compiler metadata.
+- [ENSv2 contracts](https://github.com/ensdomains/contracts-v2/tree/0f10caf5), tag `v2-mainnet-deployment-1` sources and the `deploy/mainnet-v2-20261002` mainnet deployment artifacts and DAO proposal.
 - [Alchemy limits and validation](research/alchemy.md).

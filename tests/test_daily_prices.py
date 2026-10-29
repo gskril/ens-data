@@ -54,6 +54,7 @@ def test_export_keeps_usd_as_last_column_and_reuses_saved_prices(tmp_path):
     write_daily_revenue(tmp_path)
     with (tmp_path / "daily_revenue.csv").open() as stream:
         row = next(csv.DictReader(stream))
-    assert list(row)[-2:] == ["total_revenue_eth", "total_revenue_usd"]
+    assert list(row)[-1] == "total_revenue_usd"
+    assert list(row).index("total_revenue_eth") < list(row).index("v2_renewal_usd")
     assert row["total_revenue_eth"] == "3.000000000000000000"
     assert row["total_revenue_usd"] == "6001.50"
