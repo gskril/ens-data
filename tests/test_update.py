@@ -135,3 +135,18 @@ def test_price_phases_discover_new_phase_after_cached_anchor(tmp_path, monkeypat
     assert phases[0] == old
     assert phases[1]['activation_block'] == 110
     assert phases[1]['address'] == '0x' + '22' * 20
+
+
+def test_agreeing_logs_rejects_short_reads_from_lagging_nodes():
+    from ens_data.pipeline import agreeing_logs
+    full = pl.DataFrame({'transaction_hash': ['0xa', '0xb'], 'log_index': [1, 2]})
+    short = full.head(1)
+    empty = full.clear()
+    # A short read that happens to repeat is not accepted while a fuller result was seen.
+    results = iter([full, short, short, full, full])
+    assert agreeing_logs(lambda: next(results)).equals(full)
+    results = iter([empty, empty])
+    assert len(agreeing_logs(lambda: next(results))) == 0
+    results = iter([full, short] * 2)
+    with pytest.raises(ValueError, match='did not converge'):
+        agreeing_logs(lambda: next(results), attempts=4)

@@ -50,7 +50,9 @@ def test_daily_total_adds_base_premium_legacy_and_renewal_once(tmp_path):
                      "registration_premium_eth": "2.000000000000000002",
                      "registration_combined_legacy_eth": "4.000000000000000004",
                      "renewal_eth": "0.000000000000000100", "total_revenue_eth": "7.000000000000000107",
-                     "total_revenue_usd": ""}]
+                     "v2_registration_base_usd": "0.000000000000000000",
+                     "v2_registration_premium_usd": "0.000000000000000000",
+                     "v2_renewal_usd": "0.000000000000000000", "total_revenue_usd": ""}]
     path = tmp_path / "name_events" / "2023.csv"
     with path.open(encoding="utf-8", newline="") as stream:
         simple = list(csv.DictReader(stream))

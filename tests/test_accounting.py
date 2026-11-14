@@ -7,7 +7,7 @@ from eth_abi import encode
 from eth_utils import keccak
 
 from ens_data.accounting import account_transaction, decode_log, eth, renewal_evidence, revenue_parts, duration_key, match_durations
-from ens_data.contracts import CONTROLLERS, PRICE, REGISTERED, RENEW, RENEWED, RENEWED_REFERRER
+from ens_data.contracts import CONTROLLERS, LEGACY_CONTROLLERS, PRICE, REGISTERED, RENEW, RENEWED, RENEWED_REFERRER
 
 
 WRAPPED = CONTROLLERS[3].address
@@ -65,7 +65,7 @@ def test_missing_or_inconsistent_traces_fail_closed():
         account_transaction([event(cost=121)], 1_700_000_000, renewal([]))
 
 
-@pytest.mark.parametrize("controller", CONTROLLERS)
+@pytest.mark.parametrize("controller", LEGACY_CONTROLLERS)
 def test_all_registration_abis_preserve_split_and_big_integers(controller):
     huge = 2**120 + 1
     split = controller.registration_shape != "combined"

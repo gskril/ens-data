@@ -30,6 +30,10 @@ test('real CSVs reconcile across all granularities', () => {
       const grouped = aggregate(rows, keys, rows[0].date, rows.at(-1)!.date, interval);
       for (const key of keys.filter(key => !key.endsWith('_usd'))) assert.ok(Math.abs(total(rows, key) - total(grouped, key)) < Math.max(1e-8, total(rows, key) * 1e-12));
     }
-    if (file === 'daily_revenue.csv') for (const row of rows) assert.ok(Math.abs(Number(row.total_revenue_eth) - revenueKeys.slice(0, 4).reduce((s, key) => s + Number(row[key]), 0)) < 1e-8);
+    if (file === 'daily_revenue.csv') for (const row of rows) {
+      assert.ok(Math.abs(Number(row.total_revenue_eth) - revenueKeys.slice(0, 4).reduce((s, key) => s + Number(row[key]), 0)) < 1e-8);
+      // ENSv2 stablecoin revenue is part of the USD total, never the ETH total.
+      if (row.total_revenue_usd !== null) assert.ok(Number(row.total_revenue_usd) + 0.01 >= revenueKeys.slice(5, 8).reduce((s, key) => s + Number(row[key]), 0));
+    }
   }
 });
