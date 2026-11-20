@@ -2,6 +2,28 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { aggregate, bucket, parseCsv, revenueKeys, activityKeys, total } from './data';
+import { defaultView, views } from './views';
+
+test('explore views lead with v1+v2 activity and USD, then ENSv1 ETH views', () => {
+  assert.deepEqual(Object.keys(views), ['activity', 'duration', 'usd', 'v2', 'revenue', 'sources']);
+  assert.equal(defaultView, 'activity');
+  for (const view of Object.values(views)) {
+    assert.equal(view.keys.length, view.names.length);
+    if (view.unit === 'ETH') assert.match(view.label, /^ENSv1 .*\(ETH\)$/);
+  }
+});
+test('activity and USD revenue continue through ENSv2 after ENSv1 ETH fees stop', () => {
+  const revenue = parseCsv(readFileSync(new URL('../../data/daily_revenue.csv', import.meta.url), 'utf8'), revenueKeys);
+  const activity = new Map(parseCsv(readFileSync(new URL('../../data/daily_activity.csv', import.meta.url), 'utf8'), activityKeys).map(row => [row.date, row]));
+  const v2Days = revenue.filter(row => row.date >= '2026-10-27' && revenueKeys.slice(5, 8).some(key => Number(row[key]) > 0));
+  assert.ok(v2Days.length > 0);
+  for (const row of v2Days) {
+    const day = activity.get(row.date)!;
+    assert.ok(Number(day.registration_count) + Number(day.renewal_count) > 0, row.date);
+    assert.ok(Number(day.registration_duration_seconds) + Number(day.renewal_duration_seconds) > 0, row.date);
+    if (Number(row.total_revenue_eth) === 0) assert.ok(Math.abs(Number(row.total_revenue_usd) - revenueKeys.slice(5, 8).reduce((s, key) => s + Number(row[key]), 0)) < 0.01, row.date);
+  }
+});
 
 test('date filtering is inclusive and happens before aggregation', () => {
   const rows = parseCsv('date,value\n2024-01-01,100\n2024-01-02,2\n2024-01-03,3\n2024-01-04,100', ['value']);
