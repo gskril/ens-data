@@ -1,0 +1,85 @@
+{
+  "status": "passed",
+  "start_block": 7000000,
+  "end_block": 26457568,
+  "end_block_hash": "0x4d617ecce4d76402e89362985fa0f31bdba3959321541f422b689a95e3d73b56",
+  "end_timestamp": 1795192919,
+  "event_count": 5341500,
+  "total_revenue_eth": "65135.323812846597953526",
+  "v2_event_count": 18987,
+  "v2_total_revenue_usd": "231745.901142944000000000",
+  "renewal_overstatement_eth": "381825.824093773183141594",
+  "daily_rows": 2880,
+  "total_usd_for_priced_days": "129566403.74",
+  "missing_price_revenue_days": 333,
+  "tests_passed": 50,
+  "files_sha256": {
+    "events.csv.gz": "0a12d7954e1b8fc227e8575556055c0f707d02fa6b6683c565ee1a9c5df2bada",
+    "daily_revenue.csv": "2a1ffa0528e87d50d4a80e978419971ae89354af9657956c3378f9c3af716238",
+    "daily_revenue_by_source.csv": "fd7c76bf0f4d9fbbfb1b93976801af3dddffd6923ee48359504676da629621b8",
+    "daily_activity.csv": "d3f9cf27b2cdc297822639489b6dc80b4cc531c7083e55b1c74c675cd0dde362",
+    "name_events/2019.csv": "f35c59ffc234ab45e965eb57ab85629160abbf10f4c7cbf24c028ba2e9905f33",
+    "name_events/2020.csv": "4b4495822da313558d6fab7589b5ebb59ac8bc61b48756fc50ccd5f5794e0fab",
+    "name_events/2021.csv": "b00ff3889d4d49543a887f074d8e901e51801d6b2e71fc363e01d6cef1116b8f",
+    "name_events/2022-part1.csv": "7f659c13cd072941a51780f7b6c17c825d7235ed3fbccd7e1e5663cee2464cc3",
+    "name_events/2022-part2.csv": "aa502fa070c6d87b962eb317ac5a977e7f590dce55226c8b10fac374da78a884",
+    "name_events/2023.csv": "fff73db2d887fa779969b8992baade3d786711c331ec7408345c0e97126e515f",
+    "name_events/2024.csv": "0d1aaf492c7c5eef6026d0eee6712f4ef7cf6f1c9b7a4190b35303197573e372",
+    "name_events/2025.csv": "4cc63a344888091c6b8bdb37c98fd5261de77740c2a14c8f716f06bea3b9cb52",
+    "name_events/2026.csv": "80cc5f89f601f12ed1478890b8689b26ca3efd125e3b51ece01321a0a6e2c289",
+    "name_events_v2/2026.csv": "bc23cfff57eb9ac335e1f1859101673c2ab10cd15935301cceed499d493f276f",
+    "daily_eth_usd.csv": "8d49d9ef4995fbbc5224404ebb7540c96e82c01ce0149bc23f0ffe27540af013"
+  },
+  "checks": [
+    "all export SHA-256 hashes",
+    "journal event count and snapshot anchor",
+    "contiguous matching revenue and expiry coverage",
+    "zero-filled UTC dates and boundary coverage",
+    "exact daily and source revenue and refund sums",
+    "activity counts and durations reconcile with sources",
+    "daily USD independently reconciled with Decimal arithmetic",
+    "yearly name export counts and exact revenue",
+    "ENSv2 USD sources reconcile across daily revenue, source, activity and name_events_v2 exports",
+    "post-handover days carry zero ETH revenue and USD equals v2 stablecoin revenue",
+    "Restored snapshot-2026-10-26 evidence (SHA256SUMS verified) and discarded the unpublished November 2 extension made with pre-ENSv2 code",
+    "ens-data update --verify-logs (Alchemy): v2 controllers backfilled over 26,183,999-26,280,235 (0 fee events); chunks 26,280,236-26,380,235 (14,247 events) and 26,380,236-26,457,568 (6,566 events) committed",
+    "name_events/2026.csv identical to, and name_events_v2/2026.csv an append-only extension of, the October 29 CSVs from PR #3 (first 3,375 v2 rows unchanged)",
+    "Validator: /workspace/ens-validate/validate_v2.py, an ENSv2-aware copy of the prior independent validator"
+  ],
+  "archive": {
+    "status": "passed",
+    "archive_file_count": 3042,
+    "archive_bytes": 4315596099,
+    "checks": [
+      "SQLite structural integrity and event count",
+      "every archived file SHA-256 matches source",
+      "gzip integrity",
+      "no Git-tracked data files in archive",
+      "only raw evidence, journal, and event audit"
+    ],
+    "directory": "releases/snapshot-2026-11-20",
+    "parts_sha256": {
+      "snapshot-2026-11-20-evidence.tar.gz.part-000": "cf34fc1b851a97ca0da8fceebc9b142a6d7a6a35a1e547a1982dcfcdead3398e",
+      "snapshot-2026-11-20-evidence.tar.gz.part-001": "c8237c3cb26816260cc5281d699870ddc5d9420eb3d889fac27e0e948899692c",
+      "snapshot-2026-11-20-evidence.tar.gz.part-002": "a06b7286330f3dc78e2b65364b230c2be145c7bb8aea29683e575aaab1104d97",
+      "snapshot-2026-11-20-evidence.tar.gz.part-003": "2aa6704a63935bda6a290cb8dbefa43f443df3f2d2c50b505a354a18a043f36f",
+      "snapshot-2026-11-20-evidence.tar.gz.part-004": "de982ce63e6a6ccfb44cbeefd92c1aa6125d79dbd0f907f798cf0df8ed2f250b",
+      "snapshot-2026-11-20-evidence.tar.gz.part-005": "76a8fa2cf1dc4278ef8a04439cd7130a16b24a9e28454c642742e827e2bebb07"
+    },
+    "packaging_code_commit": "9593472df0451fa35822374bc24b18d51fa82759",
+    "snapshot_git_ref": "refs/tags/snapshot-2026-11-20",
+    "release_url": "https://github.com/gskril/ens-data/releases/tag/snapshot-2026-11-20"
+  },
+  "v1_handover_block": 26282117,
+  "controller_additions": [
+    {
+      "controllers": [
+        "eth_registrar_v2",
+        "eth_renewer_v1_v2"
+      ],
+      "backfilled_through_block": 26280235,
+      "backfilled_events": 0,
+      "requested_at": "2026-11-20T16:58:26.490442+00:00"
+    }
+  ]
+}
