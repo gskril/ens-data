@@ -2,7 +2,7 @@ import Papa from 'papaparse';
 
 export type Row = { date: string; [key: string]: string | number | null };
 export type Interval = 'day' | 'week' | 'month';
-export const revenueKeys = ['registration_base_eth', 'registration_premium_eth', 'registration_combined_legacy_eth', 'renewal_eth', 'total_revenue_eth', 'total_revenue_usd'];
+export const revenueKeys = ['registration_base_eth', 'registration_premium_eth', 'registration_combined_legacy_eth', 'renewal_eth', 'total_revenue_eth', 'v2_registration_base_usd', 'v2_registration_premium_usd', 'v2_renewal_usd', 'total_revenue_usd'];
 export const activityKeys = ['registration_count', 'registration_duration_seconds', 'renewal_count', 'renewal_duration_seconds'];
 
 export function parseCsv(csv: string, keys: string[]): Row[] {

@@ -5,7 +5,8 @@ from datetime import datetime, timezone
 from eth_abi import decode
 from eth_utils import keccak
 
-from .contracts import BASE_FOR_CONTROLLER, BY_ADDRESS, PRICE, REGISTERED, RENEW, RENEWED, RENEWED_REFERRER, RENEW_REFERRER
+from .contracts import (BASE_FOR_CONTROLLER, BY_ADDRESS, PAYMENT_TOKENS, PRICE, REGISTERED, RENEW, RENEWED,
+                        RENEWED_REFERRER, RENEW_REFERRER, USD_DECIMALS, V2_REGISTERED, V2_RENEWED)
 
 
 def hexstr(value):
@@ -58,11 +59,70 @@ def match_durations(events, history):
     return matched
 
 
+def is_v2(event):
+    return event.get("payment_token") is not None
+
+
+def usd_atto(token, units):
+    """Stablecoin amount at face value, in 10^-18 USD so USDC and DAI sum exactly."""
+    return units * 10 ** (USD_DECIMALS - PAYMENT_TOKENS[token][1])
+
+
+def decode_v2_log(row, controller):
+    topic = hexstr(row["topic0"])
+    if topic == V2_REGISTERED:
+        kind = "registration"
+        name_bytes, values = decode_named(["string", "address", "address", "address", "uint64", "address",
+                                           "uint256", "uint256"], raw_bytes(row["data"]))
+        duration, token, base, premium = values[4:8]
+        expires, amount = None, base + premium
+    elif topic == V2_RENEWED:
+        kind = "renewal"
+        name_bytes, values = decode_named(["string", "uint64", "uint64", "address", "uint256"], raw_bytes(row["data"]))
+        duration, expires, token, amount = values[1:5]
+        base, premium = None, None
+    else:
+        return None  # Commitments, ownership and oracle changes are not revenue.
+    labelhash = "0x" + keccak(name_bytes).hex()
+    token_id = int(hexstr(row["topic1"]), 16)
+    # Registry token ids replace the low 32 bits of the labelhash with a version.
+    if token_id >> 32 != int(labelhash, 16) >> 32:
+        raise ValueError("Event label does not match indexed token id")
+    token = token.lower()
+    if token not in PAYMENT_TOKENS:
+        raise ValueError(f"Unreviewed ENSv2 payment token {token}; add it to PAYMENT_TOKENS")
+    return dict(block_number=int(row["block_number"]), transaction_index=int(row["transaction_index"]),
+                transaction_hash=hexstr(row["transaction_hash"]), log_index=int(row["log_index"]),
+                controller=controller.address, controller_name=controller.name, kind=kind,
+                name=name_bytes.decode("utf-8", errors="backslashreplace"), name_bytes_hex="0x" + name_bytes.hex(),
+                labelhash=labelhash, token_id=str(token_id), expires=expires, duration_seconds=duration,
+                currency=PAYMENT_TOKENS[token][0], payment_token=token,
+                base_units=base, premium_units=premium, revenue_units=amount,
+                reported_cost_wei=None, base_wei=None, premium_wei=None, referrer=hexstr(row["topic2"]))
+
+
+def account_v2(event, timestamp):
+    """ENSv2 events report exactly the amount transferred to the beneficiary.
+
+    There is no msg.value or refund: the registrar pulls `base + premium` (or the
+    renewal amount; one batched transfer for renewBatch) with safeTransferFrom.
+    """
+    e = dict(event, timestamp=timestamp, date=datetime.fromtimestamp(timestamp, timezone.utc).date().isoformat())
+    if e["kind"] == "registration":
+        e["expires"] = timestamp + e["duration_seconds"]
+    e.update(revenue_wei=None, refund_wei=None, call_value_wei=None, trace_address=None, correction_wei=0,
+             revenue_usd=usd(usd_atto(e["payment_token"], e["revenue_units"])),
+             accounting_method="v2_token_event")
+    return e
+
+
 def decode_log(row):
     address, topic = hexstr(row["address"]), hexstr(row["topic0"])
     controller = BY_ADDRESS.get(address)
     if controller is None:
         raise ValueError(f"Unknown controller {address}")
+    if controller.registration_shape == "v2":
+        return decode_v2_log(row, controller)
     if topic == REGISTERED[controller.registration_shape]:
         kind = "registration"
         types = ["string", "uint256", "uint256"]
@@ -157,9 +217,12 @@ def renewal_evidence(rows):
 def account_transaction(events, timestamp, traces, durations=None, prices=None):
     durations = durations or {}
     prices = prices or {}
-    evidence = renewal_evidence(traces) if traces and any(e["kind"] == "renewal" for e in events) else {}
+    evidence = renewal_evidence(traces) if traces and any(e["kind"] == "renewal" and not is_v2(e) for e in events) else {}
     result = []
     for original in sorted(events, key=lambda e: e["log_index"]):
+        if is_v2(original):
+            result.append(account_v2(original, timestamp))
+            continue
         e = dict(original)
         e["timestamp"] = timestamp
         e["date"] = datetime.fromtimestamp(timestamp, timezone.utc).date().isoformat()
@@ -214,7 +277,25 @@ def eth(wei):
     return f"{sign}{whole}.{fraction:018d}"
 
 
+def usd(atto):
+    return eth(atto)
+
+
+def parse_fixed18(text):
+    whole, _, fraction = text.partition(".")
+    if len(fraction) != 18 or not whole.isdigit() or not fraction.isdigit():
+        raise ValueError(f"Expected an 18-decimal amount, got {text!r}")
+    return int(whole) * 10**18 + int(fraction)
+
+
 def revenue_parts(event):
+    """Return (source, amount) pairs: wei for ETH sources, 10^-18 USD for v2 sources."""
+    if is_v2(event):
+        token = event["payment_token"]
+        if event["kind"] == "renewal":
+            return [("v2_renewal", usd_atto(token, event["revenue_units"]))]
+        return [("v2_registration_base", usd_atto(token, event["base_units"])),
+                ("v2_registration_premium", usd_atto(token, event["premium_units"]))]
     if event["kind"] == "renewal":
         return [("renewal", event["revenue_wei"])]
     if event["base_wei"] is None:

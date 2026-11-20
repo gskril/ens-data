@@ -1,0 +1,61 @@
+{
+  "status": "passed",
+  "start_block": 7000000,
+  "end_block": 26297619,
+  "end_block_hash": "0x0b29f0a30aea45ab6b0053163bf869d1b7ed246639935dedfe882cc86997c17d",
+  "end_timestamp": 1793267543,
+  "event_count": 5325888,
+  "total_revenue_eth": "65135.323812846597953526",
+  "v2_event_count": 3375,
+  "v2_total_revenue_usd": "40382.187171000000000000",
+  "renewal_overstatement_eth": "381825.824093773183141594",
+  "daily_rows": 2858,
+  "total_usd_for_priced_days": "129375040.01",
+  "missing_price_revenue_days": 333,
+  "tests_passed": 50,
+  "dashboard_tests_passed": 5,
+  "v1_handover_block": 26282117,
+  "controller_additions": [
+    {
+      "controllers": [
+        "eth_registrar_v2",
+        "eth_renewer_v1_v2"
+      ],
+      "backfilled_through_block": 26280235,
+      "backfilled_events": 0,
+      "requested_at": "2026-10-29T08:12:47.259043+00:00"
+    }
+  ],
+  "files_sha256": {
+    "events.csv.gz": "789fc21a483aafa1c8c488416b008c5a475fdccf1ca4980ea93a8fa9480e803b",
+    "daily_revenue.csv": "2e6a13ec2633353c7fa503df0ad3a7427d51e9a1edade2da9c87f6d5a1e22317",
+    "daily_revenue_by_source.csv": "bc5e5164071156b9457dbddc6864c2aa5e3bb470dd3d98fa6197f14e5e6d1e9f",
+    "daily_activity.csv": "37779d5840c01af1bc1bd3b5c080edb2ac2d7d0b86ef1cbdf49cd38a660010e1",
+    "name_events/2019.csv": "f35c59ffc234ab45e965eb57ab85629160abbf10f4c7cbf24c028ba2e9905f33",
+    "name_events/2020.csv": "4b4495822da313558d6fab7589b5ebb59ac8bc61b48756fc50ccd5f5794e0fab",
+    "name_events/2021.csv": "b00ff3889d4d49543a887f074d8e901e51801d6b2e71fc363e01d6cef1116b8f",
+    "name_events/2022-part1.csv": "7f659c13cd072941a51780f7b6c17c825d7235ed3fbccd7e1e5663cee2464cc3",
+    "name_events/2022-part2.csv": "aa502fa070c6d87b962eb317ac5a977e7f590dce55226c8b10fac374da78a884",
+    "name_events/2023.csv": "fff73db2d887fa779969b8992baade3d786711c331ec7408345c0e97126e515f",
+    "name_events/2024.csv": "0d1aaf492c7c5eef6026d0eee6712f4ef7cf6f1c9b7a4190b35303197573e372",
+    "name_events/2025.csv": "4cc63a344888091c6b8bdb37c98fd5261de77740c2a14c8f716f06bea3b9cb52",
+    "name_events/2026.csv": "80cc5f89f601f12ed1478890b8689b26ca3efd125e3b51ece01321a0a6e2c289",
+    "name_events_v2/2026.csv": "9c247593a0343f9d916678ef8f3ba966641e00478746b66767c7e02062de03f6",
+    "daily_eth_usd.csv": "80c30ba87370568e3bf18c418eb464ffee5220ebf13daebf81e71278558a4e37"
+  },
+  "checks": [
+    "Restored snapshot-2026-10-26 evidence (SHA256SUMS verified); CSV checksums matched its manifest",
+    "Offline re-export with the ENSv2 code reproduced every v1 ETH value in daily_revenue.csv and daily_revenue_by_source.csv, daily_activity.csv and all name_events files byte-for-byte",
+    "ens-data update --end-block 26296726 --verify-logs: v2 controllers backfilled over 26,183,999-26,280,235 (0 fee events), new chunk 26,280,236-26,296,726 committed",
+    "Every log in the new chunk for the five v1 controllers, the 2019-2023 base registrar (NameRegistered/NameMigrated/NameRenewed, through block 26,282,117) and both ENSv2 fee contracts matched an independent double fetch in 500/700-block windows: 0 missing, 0 extra",
+    "ENSv2 events (3,277) equal an independent eth_getLogs scan through block 26,296,700 plus 6 later events",
+    "Fixture receipts: ENSv2 event amounts equal the USDC transferred to the beneficiary 0x4f2083f5fbede34c2714affb3105539775f7fe64",
+    "An earlier unverified run against the same public RPC silently dropped 244 ENSv2 events; that output was discarded and the journal restored from the release before this run",
+    "Manifest status complete, last_error null; all 15 CSV checksums match",
+    "Second extension 26,296,727-26,297,619 via Tenderly's free gateway with --verify-logs: its 98 ENSv2 events equal a double eth_getLogs scan through evm.stupidtech.net (0 missing, 0 extra)"
+  ],
+  "archive": {
+    "status": "not_released",
+    "note": "Reproduce from snapshot-2026-10-26 with: uv run ens-data update --output data --end-block 26297619 --verify-logs"
+  }
+}
