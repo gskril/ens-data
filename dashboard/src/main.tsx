@@ -3,18 +3,10 @@ import { createRoot } from 'react-dom/client';
 import { Area, Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Papa from 'papaparse';
 import { activityKeys, aggregate, parseCsv, revenueKeys, total, type Interval, type Row } from './data';
+import { defaultView, views, type View } from './views';
 import './style.css';
 
 const repo = 'https://github.com/gskril/ens-data';
-const views = {
-  revenue: { label: 'Revenue in ETH', unit: 'ETH', keys: ['total_revenue_eth'], names: ['Total revenue in ETH'], source: 'daily_revenue.csv' },
-  sources: { label: 'Revenue by source (ETH)', unit: 'ETH', keys: revenueKeys.slice(0, 4), names: ['Registration base', 'Registration premium', 'Legacy registration (combined)', 'Renewals'], source: 'daily_revenue.csv' },
-  v2: { label: 'ENSv2 revenue by source (USD)', unit: 'USD', keys: revenueKeys.slice(5, 8), names: ['Registration base', 'Registration premium', 'Renewals'], source: 'daily_revenue.csv' },
-  usd: { label: 'Revenue in USD', unit: 'USD', keys: ['total_revenue_usd'], names: ['Revenue in USD'], source: 'daily_revenue.csv' },
-  activity: { label: 'Registrations and renewals (count)', unit: 'events', keys: ['registration_count', 'renewal_count'], names: ['Registrations', 'Renewals'], source: 'daily_activity.csv' },
-  duration: { label: 'Purchased duration (years)', unit: 'years', keys: ['registration_years', 'renewal_years'], names: ['Registration years', 'Renewal years'], source: 'daily_activity.csv' },
-};
-type View = keyof typeof views;
 const firstActivityDate = (rows: Row[]) => (rows.find(row => ['total_revenue_eth', 'registration_count', 'renewal_count'].some(key => Number(row[key]) > 0)) ?? rows[0]).date;
 const colors = ['#3478ec', '#23a88a', '#a082cf', '#e6a345'];
 const compact = (value: number) => new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
@@ -23,7 +15,7 @@ const number = (value: number) => new Intl.NumberFormat('en', { maximumFractionD
 function App() {
   const [data, setData] = useState<Row[]>([]);
   const [error, setError] = useState('');
-  const [view, setView] = useState<View>('revenue');
+  const [view, setView] = useState<View>(defaultView);
   const [interval, setInterval] = useState<Interval>('month');
   const [chart, setChart] = useState('area');
   const [start, setStart] = useState('');
@@ -89,7 +81,7 @@ function App() {
           <div className="date-controls"><label>From<input aria-label="From date" type="date" min={data[0].date} max={data.at(-1)!.date} value={start} onChange={e => setStart(e.target.value)} /></label><span className="date-dash">—</span><label>To<input aria-label="To date" type="date" min={data[0].date} max={data.at(-1)!.date} value={end} onChange={e => setEnd(e.target.value)} /></label></div>
         </div>
         <div className="range-row"><span>{filtered.length.toLocaleString()} daily observations</span><div className="presets"><span>Range</span><button onClick={() => preset(90)}>90D</button><button onClick={() => preset(365)}>1Y</button><button onClick={() => preset(365 * 3)}>3Y</button><button onClick={() => preset()}>All time</button></div></div>
-        <div className="stats"><div><span>Revenue · ETH</span><strong>{number(total(filtered, 'total_revenue_eth'))}</strong><small>Gross v1 controller fees</small></div><div><span>Revenue · USD</span><strong>${compact(total(filtered, 'total_revenue_usd'))}</strong><small>{missingUsd ? `Priced dates only · ${missingUsd} missing` : 'ETH at daily close · ENSv2 stablecoins at $1'}</small></div><div><span>Registrations</span><strong>{number(total(filtered, 'registration_count'))}</strong><small>Unique registration events</small></div><div><span>Renewals</span><strong>{number(total(filtered, 'renewal_count'))}</strong><small>Unique renewal events</small></div></div>
+        <div className="stats"><div><span>Registrations</span><strong>{number(total(filtered, 'registration_count'))}</strong><small>Unique ENSv1 + ENSv2 events</small></div><div><span>Renewals</span><strong>{number(total(filtered, 'renewal_count'))}</strong><small>Unique ENSv1 + ENSv2 events</small></div><div><span>Revenue · USD</span><strong>${compact(total(filtered, 'total_revenue_usd'))}</strong><small>{missingUsd ? `Priced dates only · ${missingUsd} missing` : 'ETH at daily close · ENSv2 stablecoins at $1'}</small></div><div><span>ENSv1 revenue · ETH</span><strong>{number(total(filtered, 'total_revenue_eth'))}</strong><small>Gross v1 controller fees · ended Oct 27, 2026</small></div></div>
         <div className="chart-heading"><div><h2>{config.label}</h2><p>{interval === 'day' ? 'Daily' : interval === 'week' ? 'Weekly' : 'Monthly'} totals · {config.unit}{activeKeys.length > 1 && chart !== 'line' ? ' · stacked' : ''}</p></div><button className="export" disabled={invalid || !points.length || !activeKeys.length} onClick={download}>Export view ↓</button></div>
         {config.keys.length > 1 && <div className="series" aria-label="Visible series">{config.keys.map((key, index) => <label key={key}><input type="checkbox" checked={!hidden.includes(key)} onChange={() => setHidden(previous => previous.includes(key) ? previous.filter(k => k !== key) : [...previous, key])} /><span style={{ background: colors[index] }} />{config.names[index]}</label>)}</div>}
         {invalid ? <div className="state" role="alert">Choose a valid date range with the start on or before the end.</div> : !points.length ? <div className="state" role="status">No observations in this date range. Try a wider range.</div> : !activeKeys.length ? <div className="state" role="status">Select at least one series to display.</div> : <div className="chart" role="img" aria-label={`${config.label}, ${interval} totals from ${start} to ${end}. Data is available in the table below.`}><ResponsiveContainer width="100%" height="100%"><ComposedChart data={points} margin={{ top: 12, right: 14, bottom: 8, left: 5 }} accessibilityLayer>
@@ -98,7 +90,7 @@ function App() {
           <Legend wrapperStyle={{ fontSize: 12, paddingTop: 20 }} />
           {config.keys.map((key, index) => hidden.includes(key) ? null : chart === 'line' ? <Line key={key} dataKey={key} name={config.names[index]} stroke={colors[index]} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={false} /> : chart === 'bar' ? <Bar key={key} dataKey={key} name={config.names[index]} stackId="total" fill={colors[index]} isAnimationActive={false} /> : <Area key={key} dataKey={key} name={config.names[index]} stackId="total" stroke={colors[index]} fill={colors[index]} fillOpacity={0.15} strokeWidth={2} isAnimationActive={false} connectNulls={false} />)}
         </ComposedChart></ResponsiveContainer></div>}
-        <p className="chart-note">{view === 'usd' && missingUsd > 0 ? `${missingUsd} dates have no usable USD price. Any period containing a missing price is shown as a gap. ` : ''}Weeks begin Monday. Edge periods include only selected dates; snapshot boundary days may be partial.</p>
+        <p className="chart-note">{view === 'usd' && missingUsd > 0 ? `${missingUsd} dates have no usable USD price. Any period containing a missing price is shown as a gap. ` : ''}{config.unit === 'ETH' ? 'ENSv1 ETH fees ended on 2026-10-27; ENSv2 fees are paid in stablecoins and appear in the USD views. ' : ''}Weeks begin Monday. Edge periods include only selected dates; snapshot boundary days may be partial.</p>
       </section>
       <details className="table-panel"><summary>View chart data <span>{points.length} periods</span></summary><div className="table-scroll"><table><caption>{config.label} · {config.unit} · {interval} totals</caption><thead><tr><th scope="col">Period starting (UTC)</th>{activeKeys.map(key => <th scope="col" key={key}>{config.names[config.keys.indexOf(key)]}</th>)}</tr></thead><tbody>{points.map(row => <tr key={row.date}><th scope="row">{row.date}</th>{activeKeys.map(key => <td key={key}>{row[key] === null ? 'Unavailable' : number(Number(row[key]))}</td>)}</tr>)}</tbody></table></div></details>
       <section className="notes"><div><h3>Understand the numbers</h3><p>Cash-basis gross fees from permanent-registrar .eth controllers. Legacy registration fees combine base rent and premium; their split is unavailable. Purchased years use 365.25 days. Chart values are rounded for display; the source CSVs retain exact ETH amounts.</p></div><div><h3>Take the data with you</h3><p>USD uses daily Chainlink closing prices, with historical gaps. This is a fixed snapshot, not a live feed. <a href={`${repo}#coverage-and-provenance`}>Read the methodology ↗</a></p><div className="downloads"><a href={`${import.meta.env.BASE_URL}data/daily_revenue.csv`} download>Revenue CSV ↓</a><a href={`${import.meta.env.BASE_URL}data/daily_activity.csv`} download>Activity CSV ↓</a></div></div></section>
