@@ -1,0 +1,69 @@
+{
+  "status": "passed",
+  "start_block": 7000000,
+  "end_block": 26481171,
+  "end_block_hash": "0x9c62df93b8709198fe76e8a12d98625c9a0479939e497c50b38743eea5672418",
+  "end_timestamp": 1795477079,
+  "event_count": 5343527,
+  "total_revenue_eth": "65135.323812846597953526",
+  "v2_event_count": 21014,
+  "v2_total_revenue_usd": "276223.719390944000000000",
+  "renewal_overstatement_eth": "381825.824093773183141594",
+  "daily_rows": 2883,
+  "total_usd_for_priced_days": "129610881.55",
+  "missing_price_revenue_days": 333,
+  "tests_passed": 50,
+  "files_sha256": {
+    "events.csv.gz": "3768af11a48dd5e2ced548dd6a6b0b6009dc1c9b50ae3203519b335af6024f40",
+    "daily_revenue.csv": "aad321bac7d053925a77c5f8fb6f9a04a04c73343f35f4e39efa4fb3fe272ba1",
+    "daily_revenue_by_source.csv": "14cb49074a65028df1db27e7773e0b0cf1e0f7877666f97c3baa614411ec1c30",
+    "daily_activity.csv": "39418ead42f79bfb0a449e08a2dbfb32929ac4cf9cc308d0e2a157f9ae83a71f",
+    "name_events/2019.csv": "f35c59ffc234ab45e965eb57ab85629160abbf10f4c7cbf24c028ba2e9905f33",
+    "name_events/2020.csv": "4b4495822da313558d6fab7589b5ebb59ac8bc61b48756fc50ccd5f5794e0fab",
+    "name_events/2021.csv": "b00ff3889d4d49543a887f074d8e901e51801d6b2e71fc363e01d6cef1116b8f",
+    "name_events/2022-part1.csv": "7f659c13cd072941a51780f7b6c17c825d7235ed3fbccd7e1e5663cee2464cc3",
+    "name_events/2022-part2.csv": "aa502fa070c6d87b962eb317ac5a977e7f590dce55226c8b10fac374da78a884",
+    "name_events/2023.csv": "fff73db2d887fa779969b8992baade3d786711c331ec7408345c0e97126e515f",
+    "name_events/2024.csv": "0d1aaf492c7c5eef6026d0eee6712f4ef7cf6f1c9b7a4190b35303197573e372",
+    "name_events/2025.csv": "4cc63a344888091c6b8bdb37c98fd5261de77740c2a14c8f716f06bea3b9cb52",
+    "name_events/2026.csv": "80cc5f89f601f12ed1478890b8689b26ca3efd125e3b51ece01321a0a6e2c289",
+    "name_events_v2/2026.csv": "a4fe9efebf67077448772123c89c5be33d90783f7a7fc0f48f2775c1ce96ddc3",
+    "daily_eth_usd.csv": "2b779382ab0b2de7f356302b7251d8920f4809ef1d519d60224a62140cfe399d"
+  },
+  "checks": [
+    "all export SHA-256 hashes",
+    "journal event count and snapshot anchor",
+    "contiguous matching revenue and expiry coverage",
+    "zero-filled UTC dates and boundary coverage",
+    "exact daily and source revenue and refund sums",
+    "activity counts and durations reconcile with sources",
+    "daily USD independently reconciled with Decimal arithmetic",
+    "yearly name export counts and exact revenue",
+    "ENSv2 USD sources reconcile across daily revenue, source, activity and name_events_v2 exports",
+    "post-handover days carry zero ETH revenue and USD equals v2 stablecoin revenue"
+  ],
+  "archive": {
+    "status": "passed",
+    "archive_file_count": 3053,
+    "archive_bytes": 4317139856,
+    "checks": [
+      "SQLite structural integrity and event count",
+      "every archived file SHA-256 matches source",
+      "gzip integrity",
+      "no Git-tracked data files in archive",
+      "only raw evidence, journal, and event audit"
+    ],
+    "directory": "releases/snapshot-2026-11-23",
+    "parts_sha256": {
+      "snapshot-2026-11-23-evidence.tar.gz.part-000": "ddfaaf0636c4b39d7f165fc0225a98a291acbc184cbac156be255d2314b2bf55",
+      "snapshot-2026-11-23-evidence.tar.gz.part-001": "a914d8e5540ed7ca5548a073c17b99af3f316d18a27601e9fc677c9c0954ec77",
+      "snapshot-2026-11-23-evidence.tar.gz.part-002": "7f09bd98e50bcd31503cf12a376ac3995679f32e9e374c4c01ed04ca930f0986",
+      "snapshot-2026-11-23-evidence.tar.gz.part-003": "ba840fb1dd54aaba33e1da3a1d69ad5baae27275e93d7faa6c81213b549957be",
+      "snapshot-2026-11-23-evidence.tar.gz.part-004": "cdae4d695a96704ef721ea38889c39a43d90b10215e80ebb2e5ba5a0c53fe6e2",
+      "snapshot-2026-11-23-evidence.tar.gz.part-005": "2f60245c5fed7b8642af5e35f23de65adf3cc80e5a973377d299a0ce7b062113"
+    },
+    "packaging_code_commit": "f86647a9feb48122756c14b442881fa14e74287b",
+    "snapshot_git_ref": "refs/tags/snapshot-2026-11-23",
+    "release_url": "https://github.com/gskril/ens-data/releases/tag/snapshot-2026-11-23"
+  }
+}

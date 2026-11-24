@@ -1,10 +1,10 @@
 {
   "chain_id": 1,
   "start_block": 7000000,
-  "end_block": 26457568,
-  "end_block_hash": "0x4d617ecce4d76402e89362985fa0f31bdba3959321541f422b689a95e3d73b56",
+  "end_block": 26481171,
+  "end_block_hash": "0x9c62df93b8709198fe76e8a12d98625c9a0479939e497c50b38743eea5672418",
   "start_timestamp": 1546466952,
-  "end_timestamp": 1795192919,
+  "end_timestamp": 1795477079,
   "created_at": "2026-09-16T17:56:18.745440+00:00",
   "cryo_version": "0.3.2",
   "controllers": [
@@ -116,6 +116,13 @@
       "end_block": 26457568,
       "end_block_hash": "0x4d617ecce4d76402e89362985fa0f31bdba3959321541f422b689a95e3d73b56",
       "requested_at": "2026-11-20T16:58:26.534922+00:00"
+    },
+    {
+      "previous_end_block": 26457568,
+      "previous_end_block_hash": "0x4d617ecce4d76402e89362985fa0f31bdba3959321541f422b689a95e3d73b56",
+      "end_block": 26481171,
+      "end_block_hash": "0x9c62df93b8709198fe76e8a12d98625c9a0479939e497c50b38743eea5672418",
+      "requested_at": "2026-11-23T23:52:46.585361+00:00"
     }
   ],
   "controller_additions": [
@@ -927,31 +934,35 @@
     [
       26380236,
       26457569
+    ],
+    [
+      26457569,
+      26481172
     ]
   ],
-  "event_count": 5341500,
+  "event_count": 5343527,
   "total_revenue_wei": "65135323812846597953526",
   "total_revenue_eth": "65135.323812846597953526",
   "renewal_overstatement_wei": "381825824093773183141594",
-  "v2_event_count": 18987,
-  "v2_total_revenue_usd": "231745.901142944000000000",
+  "v2_event_count": 21014,
+  "v2_total_revenue_usd": "276223.719390944000000000",
   "v2_valuation": "ENSv2 fees are stablecoin transfers (USDC, DAI) counted at $1 face value",
   "accounting_methods": {
     "controller_event": 3759057,
     "trace_oracle_and_refund": 24019,
     "controller_event_and_expiry_history": 654525,
     "oracle_rounds_and_expiry_history": 884912,
-    "v2_token_event": 18987
+    "v2_token_event": 21014
   },
   "daily_revenue_layout": "one row per UTC day; v1 source columns in ETH, total_revenue_eth, ENSv2 source columns in USD; total_revenue_usd last",
   "journal_payload_encoding": "JSON or Z1-prefixed zlib JSON",
   "legacy_split": "unavailable: reported separately as registration_combined_legacy",
   "scope": "Ethereum .eth permanent-registrar controller fees, including ENSv2 ETHRegistrar/ETHRenewerV1 stablecoin fees; excludes gas, secondary sales, 2017 auctions, subnames",
   "files_sha256": {
-    "events.csv.gz": "0a12d7954e1b8fc227e8575556055c0f707d02fa6b6683c565ee1a9c5df2bada",
-    "daily_revenue.csv": "2a1ffa0528e87d50d4a80e978419971ae89354af9657956c3378f9c3af716238",
-    "daily_revenue_by_source.csv": "fd7c76bf0f4d9fbbfb1b93976801af3dddffd6923ee48359504676da629621b8",
-    "daily_activity.csv": "d3f9cf27b2cdc297822639489b6dc80b4cc531c7083e55b1c74c675cd0dde362",
+    "events.csv.gz": "3768af11a48dd5e2ced548dd6a6b0b6009dc1c9b50ae3203519b335af6024f40",
+    "daily_revenue.csv": "aad321bac7d053925a77c5f8fb6f9a04a04c73343f35f4e39efa4fb3fe272ba1",
+    "daily_revenue_by_source.csv": "14cb49074a65028df1db27e7773e0b0cf1e0f7877666f97c3baa614411ec1c30",
+    "daily_activity.csv": "39418ead42f79bfb0a449e08a2dbfb32929ac4cf9cc308d0e2a157f9ae83a71f",
     "name_events/2019.csv": "f35c59ffc234ab45e965eb57ab85629160abbf10f4c7cbf24c028ba2e9905f33",
     "name_events/2020.csv": "4b4495822da313558d6fab7589b5ebb59ac8bc61b48756fc50ccd5f5794e0fab",
     "name_events/2021.csv": "b00ff3889d4d49543a887f074d8e901e51801d6b2e71fc363e01d6cef1116b8f",
@@ -961,8 +972,8 @@
     "name_events/2024.csv": "0d1aaf492c7c5eef6026d0eee6712f4ef7cf6f1c9b7a4190b35303197573e372",
     "name_events/2025.csv": "4cc63a344888091c6b8bdb37c98fd5261de77740c2a14c8f716f06bea3b9cb52",
     "name_events/2026.csv": "80cc5f89f601f12ed1478890b8689b26ca3efd125e3b51ece01321a0a6e2c289",
-    "name_events_v2/2026.csv": "bc23cfff57eb9ac335e1f1859101673c2ab10cd15935301cceed499d493f276f",
-    "daily_eth_usd.csv": "8d49d9ef4995fbbc5224404ebb7540c96e82c01ce0149bc23f0ffe27540af013"
+    "name_events_v2/2026.csv": "a4fe9efebf67077448772123c89c5be33d90783f7a7fc0f48f2775c1ce96ddc3",
+    "daily_eth_usd.csv": "2b779382ab0b2de7f356302b7251d8920f4809ef1d519d60224a62140cfe399d"
   },
   "usd_conversion": {
     "source": "Chainlink ETH/USD",
